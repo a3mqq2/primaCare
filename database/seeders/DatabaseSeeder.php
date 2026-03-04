@@ -21,7 +21,8 @@ class DatabaseSeeder extends Seeder
             'username' => 'admin',
             'name' => 'Administrator',
             'email' => 'admin@primacare.moh.gov.ly',
-            'password' => '123123123'
+            'password' => '123123123',
+            'role' => 'system_admin',
         ]);
     }
 }

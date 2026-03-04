@@ -251,6 +251,11 @@
                     <div id="query-no-results" class="text-center py-4 text-muted" style="display:none;">
                         <i class="ti ti-search-off fs-1 d-block mb-2"></i>
                         {{ __('medical_records.no_results') }}
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary" id="btn-add-from-query">
+                                <i class="ti ti-file-plus me-1"></i>{{ __('medical_records.add_record') }}
+                            </button>
+                        </div>
                     </div>
                     <div id="query-pagination" class="mt-3"></div>
                 </div>
@@ -329,6 +334,7 @@
         });
 
         document.getElementById('btn-show-add').addEventListener('click', () => showPanel('add-panel'));
+        document.getElementById('btn-add-from-query').addEventListener('click', () => showPanel('add-panel'));
         document.getElementById('btn-show-query').addEventListener('click', function() {
             showPanel('query-panel');
             document.getElementById('query-input').focus();
