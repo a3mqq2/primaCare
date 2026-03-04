@@ -1,0 +1,45 @@
+<?php
+
+return [
+    'title' => 'Dispensing Log',
+    'center' => 'Center',
+    'patient_name' => 'Patient Name',
+    'national_id' => 'National ID',
+    'phone' => 'Phone',
+    'medicine' => 'Medicine',
+    'quantity' => 'Quantity',
+    'notes' => 'Notes',
+    'dispensed_by' => 'Dispensed By',
+    'dispensed_at' => 'Date & Time',
+
+    'general_search' => 'General Search',
+    'general_search_placeholder' => 'Search by patient name, national ID, or medicine...',
+    'filter_center' => 'Filter by Center',
+    'filter_patient' => 'Filter by Patient Name',
+    'filter_national_id' => 'Filter by National ID',
+    'filter_medicine' => 'Filter by Medicine',
+    'filter_employee' => 'Filter by Employee',
+    'date_from' => 'Date From',
+    'date_to' => 'Date To',
+    'all_centers' => 'All Centers',
+    'all_medicines' => 'All Medicines',
+    'all_employees' => 'All Employees',
+    'reset_filters' => 'Reset',
+    'no_results' => 'No dispensing records found',
+
+    'print' => 'Print',
+    'print_title' => 'Dispensing Log',
+    'print_date' => 'Print Date',
+    'total_records' => 'Total Records',
+
+    'details' => 'Dispensing Details',
+    'close' => 'Close',
+    'loading' => 'Loading...',
+
+    'gender' => 'Gender',
+    'occupation' => 'Occupation',
+    'date_of_birth' => 'Date of Birth',
+    'filter_gender' => 'Filter by Gender',
+    'filter_occupation' => 'Filter by Occupation',
+    'all_genders' => 'All Genders',
+];

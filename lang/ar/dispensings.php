@@ -1,0 +1,45 @@
+<?php
+
+return [
+    'title' => 'سجل الأدوية المصروفة',
+    'center' => 'المركز',
+    'patient_name' => 'اسم المريض',
+    'national_id' => 'الرقم الوطني',
+    'phone' => 'الهاتف',
+    'medicine' => 'الدواء',
+    'quantity' => 'الكمية',
+    'notes' => 'الملاحظات',
+    'dispensed_by' => 'صُرف بواسطة',
+    'dispensed_at' => 'التاريخ والوقت',
+
+    'general_search' => 'بحث عام',
+    'general_search_placeholder' => 'ابحث بالاسم أو الرقم الوطني أو الدواء...',
+    'filter_center' => 'فلترة حسب المركز',
+    'filter_patient' => 'فلترة حسب اسم المريض',
+    'filter_national_id' => 'فلترة حسب الرقم الوطني',
+    'filter_medicine' => 'فلترة حسب الدواء',
+    'filter_employee' => 'فلترة حسب الموظف',
+    'date_from' => 'تاريخ من',
+    'date_to' => 'تاريخ إلى',
+    'all_centers' => 'جميع المراكز',
+    'all_medicines' => 'جميع الأدوية',
+    'all_employees' => 'جميع الموظفين',
+    'reset_filters' => 'إعادة تعيين',
+    'no_results' => 'لا توجد سجلات صرف',
+
+    'print' => 'طباعة',
+    'print_title' => 'سجل الأدوية المصروفة',
+    'print_date' => 'تاريخ الطباعة',
+    'total_records' => 'إجمالي السجلات',
+
+    'details' => 'تفاصيل عملية الصرف',
+    'close' => 'إغلاق',
+    'loading' => 'جاري التحميل...',
+
+    'gender' => 'الجنس',
+    'occupation' => 'العمل',
+    'date_of_birth' => 'تاريخ الميلاد',
+    'filter_gender' => 'فلترة حسب الجنس',
+    'filter_occupation' => 'فلترة حسب العمل',
+    'all_genders' => 'الكل',
+];
