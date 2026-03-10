@@ -91,6 +91,14 @@ return [
     'edit_record' => 'Edit Record',
     'updated' => 'Medical record updated successfully',
 
+    'print_record' => 'Print Record',
+    'print_record_title' => 'Patient Record',
+    'dispensing_operations' => 'Dispensing Operations',
+
+    'national_id_exists_warning' => 'A record already exists with this National ID for ":name" at :center',
+    'today_records' => "Today's Records",
+    'today_dispensings' => "Today's Dispensings",
+
     'welcome_greeting' => 'Welcome, :name',
     'welcome_message' => 'Wishing you a productive and fulfilling day',
 

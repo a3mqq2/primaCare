@@ -7,27 +7,32 @@ use App\Models\Dispensing;
 use App\Models\MedicalRecord;
 use App\Models\Medicine;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class StatisticsController extends Controller
 {
     public function index()
     {
-        $centers = Center::orderBy('name_ar')->get();
-
-        return view('admin.statistics.index', compact('centers'));
+        return view('admin.statistics.index');
     }
 
     public function data(Request $request)
     {
-        return response()->json([
-            'summary' => $this->getSummary($request),
-            'records_by_center' => $this->getRecordsByCenter($request),
-            'records_by_date' => $this->getRecordsByDate($request),
-            'records_by_gender' => $this->getRecordsByGender($request),
-            'dispensings_by_center' => $this->getDispensingsByCenter($request),
-            'top_medicines' => $this->getTopMedicines($request),
-        ]);
+        $cacheKey = 'statistics_data_' . md5(json_encode($request->only('center_id', 'date_from', 'date_to')));
+
+        $data = Cache::remember($cacheKey, 300, function () use ($request) {
+            return [
+                'summary' => $this->getSummary($request),
+                'records_by_center' => $this->getRecordsByCenter($request),
+                'records_by_date' => $this->getRecordsByDate($request),
+                'records_by_gender' => $this->getRecordsByGender($request),
+                'dispensings_by_center' => $this->getDispensingsByCenter($request),
+                'top_medicines' => $this->getTopMedicines($request),
+            ];
+        });
+
+        return response()->json($data);
     }
 
     public function print(Request $request)
@@ -72,20 +77,25 @@ class StatisticsController extends Controller
     {
         $query = $this->applyRecordFilters(MedicalRecord::query(), $request);
 
-        $results = $query->select('center_id', DB::raw('count(*) as count'))
-            ->groupBy('center_id')
-            ->with('center')
+        $results = $query->join('centers', 'medical_records.center_id', '=', 'centers.id')
+            ->select(
+                'medical_records.center_id',
+                'centers.name_ar',
+                'centers.name_en',
+                DB::raw('count(*) as count')
+            )
+            ->groupBy('medical_records.center_id', 'centers.name_ar', 'centers.name_en')
             ->get();
 
         $total = $results->sum('count');
 
         return $results->map(function ($item) use ($total) {
             return [
-                'center' => $item->center->name ?? '-',
+                'center' => app()->getLocale() === 'ar' ? $item->name_ar : $item->name_en,
                 'count' => $item->count,
                 'percentage' => $total > 0 ? round(($item->count / $total) * 100, 1) : 0,
             ];
-        })->sortByDesc('count')->values()->toArray();
+        })->sortByDesc('count')->values()->take(10)->toArray();
     }
 
     private function getRecordsByDate(Request $request): array
@@ -148,6 +158,7 @@ class StatisticsController extends Controller
             )
             ->groupBy('medical_records.center_id', 'centers.name_ar', 'centers.name_en')
             ->orderByDesc('count')
+            ->limit(10)
             ->get()
             ->map(fn ($r) => [
                 'center' => app()->getLocale() === 'ar' ? $r->name_ar : $r->name_en,
@@ -161,18 +172,18 @@ class StatisticsController extends Controller
     {
         $query = $this->applyDispensingFilters(Dispensing::query(), $request);
 
-        return $query->select(
-                'medicine_id',
+        return $query->join('medicines', 'dispensings.medicine_id', '=', 'medicines.id')
+            ->select(
+                'medicines.name',
                 DB::raw('count(*) as dispensing_count'),
-                DB::raw('sum(quantity) as total_quantity')
+                DB::raw('sum(dispensings.quantity) as total_quantity')
             )
-            ->groupBy('medicine_id')
+            ->groupBy('dispensings.medicine_id', 'medicines.name')
             ->orderByDesc('dispensing_count')
             ->limit(10)
-            ->with('medicine')
             ->get()
             ->map(fn ($r) => [
-                'name' => $r->medicine->name ?? '-',
+                'name' => $r->name,
                 'dispensing_count' => $r->dispensing_count,
                 'total_quantity' => (int) $r->total_quantity,
             ])

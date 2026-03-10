@@ -291,9 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isLoading = true;
         document.getElementById('loading').style.display = 'flex';
 
-        fetch(`{{ route('dashboard.data') }}?period=${currentPeriod}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        pcFetch(`{{ route('dashboard.data') }}?period=${currentPeriod}`)
         .then(r => r.json())
         .then(data => {
             isLoading = false;

@@ -66,8 +66,6 @@
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-
         document.getElementById('medicine-form').addEventListener('submit', function(e) {
             e.preventDefault();
             clearErrors();
@@ -81,13 +79,10 @@
                 description: document.getElementById('description').value
             };
 
-            fetch('{{ route("medicines.store") }}', {
+            pcFetch('{{ route("medicines.store") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify(payload)
             })
@@ -115,6 +110,7 @@
             .catch(() => {
                 btn.disabled = false;
                 document.getElementById('loading').style.display = 'none';
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         });
     });

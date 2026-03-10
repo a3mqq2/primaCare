@@ -4,6 +4,7 @@
 
 @push('css')
 <link href="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" />
+<link href="{{ asset('assets/plugins/choices/choices.min.css') }}" rel="stylesheet" />
 <style>
     .loading-overlay {
         position: absolute;
@@ -52,6 +53,19 @@
     [data-bs-theme="dark"] .modal-logo-preview {
         border-color: #374151;
     }
+    .choices { margin-bottom: 0; }
+    .choices .choices__inner {
+        min-height: 38px;
+        padding: 4px 8px;
+        border-color: var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        border-radius: var(--bs-border-radius);
+    }
+    .choices .choices__input { background-color: transparent; color: var(--bs-body-color); }
+    .choices .choices__list--dropdown { border-color: var(--bs-border-color); background-color: var(--bs-body-bg); }
+    .choices .choices__list--dropdown .choices__item { color: var(--bs-body-color); }
+    .choices .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: var(--bs-primary); color: #fff; }
+    .choices .choices__list--single .choices__item { color: var(--bs-body-color); }
 </style>
 @endpush
 
@@ -60,9 +74,17 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">{{ __('centers.title') }}</h4>
-            <a href="{{ route('centers.create') }}" class="btn btn-primary">
-                <i class="ti ti-plus me-1"></i>{{ __('centers.add_center') }}
-            </a>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" id="print-btn">
+                    <i class="ti ti-printer me-1"></i>{{ __('common.print') }}
+                </button>
+                <button type="button" class="btn btn-outline-success" id="export-btn">
+                    <i class="ti ti-file-spreadsheet me-1"></i>{{ __('common.export_excel') }}
+                </button>
+                <a href="{{ route('centers.create') }}" class="btn btn-primary">
+                    <i class="ti ti-plus me-1"></i>{{ __('centers.add_center') }}
+                </a>
+            </div>
         </div>
 
         <div class="card position-relative">
@@ -73,6 +95,11 @@
                 <div class="row mb-3">
                     <div class="col-md-4">
                         <input type="text" id="search" class="form-control" placeholder="{{ __('centers.search') }}" />
+                    </div>
+                    <div class="col-md-3">
+                        <select id="filter-city" class="form-select">
+                            <option value="">{{ __('centers.all_cities') }}</option>
+                        </select>
                     </div>
                 </div>
 
@@ -133,9 +160,6 @@
                             <div class="input-group">
                                 <select name="city_id" id="edit-city_id" class="form-select">
                                     <option value="">{{ __('centers.select_city') }}</option>
-                                    @foreach($cities as $city)
-                                        <option value="{{ $city->id }}">{{ $city->name_ar }} - {{ $city->name_en }}</option>
-                                    @endforeach
                                 </select>
                                 <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addCityModal">
                                     <i class="ti ti-plus"></i>
@@ -218,18 +242,97 @@
 
 @push('js')
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
+<script src="{{ asset('assets/plugins/choices/choices.min.js') }}"></script>
 <script>
     let currentPage = 1;
     let searchTimer;
     let locale = '{{ app()->getLocale() }}';
     let storageUrl = '{{ asset("storage") }}';
-    let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     let editModal;
     let currentRecordId = null;
     let selectedFile = null;
+    let editCityChoices;
+    let filterCityChoices;
 
     document.addEventListener('DOMContentLoaded', function() {
         editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+        let filterCitySelect = document.getElementById('filter-city');
+        filterCityChoices = new Choices(filterCitySelect, {
+            searchEnabled: true,
+            removeItemButton: true,
+            shouldSort: false,
+            placeholderValue: '',
+            searchPlaceholderValue: '{{ __("centers.filter_by_city") }}',
+            itemSelectText: '',
+            noResultsText: '',
+            noChoicesText: ''
+        });
+
+        function loadFilterCities(search) {
+            pcFetch('/cities/search?search=' + encodeURIComponent(search || ''))
+                .then(r => r.json())
+                .then(cities => {
+                    filterCityChoices.clearChoices();
+                    filterCityChoices.setChoices(
+                        cities.map(c => ({ value: String(c.id), label: c.name_ar + ' - ' + c.name_en })),
+                        'value', 'label', true
+                    );
+                });
+        }
+        loadFilterCities('');
+
+        filterCitySelect.addEventListener('search', function(e) {
+            loadFilterCities(e.detail.value);
+        });
+
+        filterCitySelect.addEventListener('change', function() {
+            currentPage = 1;
+            loadCenters();
+        });
+
+        document.getElementById('print-btn').addEventListener('click', function() {
+            let search = document.getElementById('search').value;
+            let cityId = document.getElementById('filter-city').value;
+            let url = '{{ route("centers.print") }}?search=' + encodeURIComponent(search) + '&city_id=' + encodeURIComponent(cityId);
+            window.open(url, '_blank');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', function() {
+            let search = document.getElementById('search').value;
+            let cityId = document.getElementById('filter-city').value;
+            window.location.href = '{{ route("centers.export") }}?search=' + encodeURIComponent(search) + '&city_id=' + encodeURIComponent(cityId);
+        });
+
+        let editCitySelect = document.getElementById('edit-city_id');
+        editCityChoices = new Choices(editCitySelect, {
+            searchEnabled: true,
+            removeItemButton: true,
+            shouldSort: false,
+            placeholderValue: '',
+            searchPlaceholderValue: '{{ __("centers.select_city") }}',
+            itemSelectText: '',
+            noResultsText: '',
+            noChoicesText: ''
+        });
+
+        function loadEditCities(search) {
+            pcFetch('/cities/search?search=' + encodeURIComponent(search || ''))
+                .then(r => r.json())
+                .then(cities => {
+                    editCityChoices.clearChoices();
+                    editCityChoices.setChoices(
+                        cities.map(c => ({ value: String(c.id), label: c.name_ar + ' - ' + c.name_en })),
+                        'value', 'label', true
+                    );
+                });
+        }
+        loadEditCities('');
+
+        editCitySelect.addEventListener('search', function(e) {
+            loadEditCities(e.detail.value);
+        });
+
         loadCenters();
 
         document.getElementById('search').addEventListener('input', function() {
@@ -267,13 +370,10 @@
             document.getElementById('error-city_name_en').textContent = '';
             btn.disabled = true;
 
-            fetch('{{ route("cities.store") }}', {
+            pcFetch('{{ route("cities.store") }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ name_ar: nameAr.value, name_en: nameEn.value })
             })
@@ -288,16 +388,15 @@
                     return;
                 }
                 if (body.success) {
-                    let select = document.getElementById('edit-city_id');
-                    let option = new Option(body.city.name_ar + ' - ' + body.city.name_en, body.city.id, true, true);
-                    select.appendChild(option);
+                    editCityChoices.setChoices([{ value: String(body.city.id), label: body.city.name_ar + ' - ' + body.city.name_en }], 'value', 'label', false);
+                    editCityChoices.setChoiceByValue(String(body.city.id));
                     nameAr.value = '';
                     nameEn.value = '';
                     bootstrap.Modal.getInstance(document.getElementById('addCityModal')).hide();
                     Swal.fire({ icon: 'success', title: body.message, showConfirmButton: false, timer: 1500 });
                 }
             })
-            .catch(() => { btn.disabled = false; });
+            .catch(() => { btn.disabled = false; Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error }); });
         });
     });
 
@@ -309,9 +408,7 @@
         document.getElementById('modal-loading').style.display = 'flex';
         editModal.show();
 
-        fetch(`/centers/${id}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        pcFetch(`/centers/${id}`)
         .then(r => r.json())
         .then(result => {
             document.getElementById('modal-loading').style.display = 'none';
@@ -319,9 +416,18 @@
 
             document.getElementById('edit-name_ar').value = center.name_ar || '';
             document.getElementById('edit-name_en').value = center.name_en || '';
-            document.getElementById('edit-city_id').value = center.city_id || '';
             document.getElementById('edit-phone').value = center.phone || '';
             document.getElementById('edit-notes').value = center.notes || '';
+
+            if (center.city_id && center.city) {
+                editCityChoices.setChoices([{
+                    value: String(center.city.id),
+                    label: center.city.name_ar + ' - ' + center.city.name_en
+                }], 'value', 'label', false);
+                editCityChoices.setChoiceByValue(String(center.city.id));
+            } else {
+                editCityChoices.removeActiveItems();
+            }
 
             if (center.logo) {
                 document.getElementById('current-logo').src = storageUrl + '/' + center.logo;
@@ -341,6 +447,7 @@
         .catch(() => {
             document.getElementById('modal-loading').style.display = 'none';
             editModal.hide();
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -359,13 +466,8 @@
         formData.append('notes', document.getElementById('edit-notes').value);
         if (selectedFile) formData.append('logo', selectedFile);
 
-        fetch(`/centers/${currentRecordId}`, {
+        pcFetch(`/centers/${currentRecordId}`, {
             method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
             body: formData
         })
         .then(response => response.json().then(data => ({status: response.status, body: data})))
@@ -387,6 +489,7 @@
         .catch(() => {
             btn.disabled = false;
             document.getElementById('modal-loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -403,13 +506,8 @@
             if (result.isConfirmed) {
                 document.getElementById('modal-loading').style.display = 'flex';
 
-                fetch(`/centers/${currentRecordId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
+                pcFetch(`/centers/${currentRecordId}`, {
+                    method: 'DELETE'
                 })
                 .then(response => response.json().then(data => ({status: response.status, body: data})))
                 .then(({status, body}) => {
@@ -424,6 +522,7 @@
                 })
                 .catch(() => {
                     document.getElementById('modal-loading').style.display = 'none';
+                    Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
                 });
             }
         });
@@ -434,9 +533,9 @@
         let search = document.getElementById('search').value;
         document.getElementById('loading').style.display = 'flex';
 
-        fetch(`{{ route('centers.data') }}?page=${currentPage}&search=${encodeURIComponent(search)}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        let cityId = document.getElementById('filter-city').value;
+
+        pcFetch(`{{ route('centers.data') }}?page=${currentPage}&search=${encodeURIComponent(search)}&city_id=${encodeURIComponent(cityId)}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('loading').style.display = 'none';
@@ -445,6 +544,7 @@
         })
         .catch(() => {
             document.getElementById('loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 

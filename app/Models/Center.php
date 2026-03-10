@@ -29,4 +29,9 @@ class Center extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function medicalRecords(): HasMany
+    {
+        return $this->hasMany(MedicalRecord::class);
+    }
 }

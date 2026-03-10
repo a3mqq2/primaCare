@@ -74,6 +74,26 @@
         display: flex;
         align-items: center;
         gap: 16px;
+        flex-wrap: wrap;
+    }
+    .daily-stats {
+        display: flex;
+        gap: 20px;
+        margin-inline-start: auto;
+    }
+    .daily-stat {
+        text-align: center;
+    }
+    .daily-stat .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1;
+    }
+    .daily-stat .stat-label {
+        font-size: 11px;
+        color: rgba(255,255,255,0.7);
+        margin-top: 2px;
     }
     .welcome-banner .welcome-avatar {
         width: 48px;
@@ -113,6 +133,16 @@
                 <div>
                     <div class="greeting">{{ __('medical_records.welcome_greeting', ['name' => Auth::user()->name]) }}</div>
                     <div class="sub-message">{{ __('medical_records.welcome_message') }}</div>
+                </div>
+                <div class="daily-stats">
+                    <div class="daily-stat">
+                        <div class="stat-value">{{ $todayRecords }}</div>
+                        <div class="stat-label">{{ __('medical_records.today_records') }}</div>
+                    </div>
+                    <div class="daily-stat">
+                        <div class="stat-value">{{ $todayDispensings }}</div>
+                        <div class="stat-label">{{ __('medical_records.today_dispensings') }}</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -165,6 +195,7 @@
                                 <label class="form-label">{{ __('medical_records.national_id') }} <span class="text-danger">*</span></label>
                                 <input type="text" name="national_id" id="national_id" class="form-control" />
                                 <div class="invalid-feedback" id="error-national_id"></div>
+                                <div class="alert alert-warning mt-2 py-2 px-3 d-none" id="national-id-warning" style="font-size:13px;"></div>
                             </div>
                         </div>
                         <div class="row">
@@ -316,7 +347,6 @@
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         let mainActions = document.getElementById('main-actions');
         let panels = document.querySelectorAll('.panel');
 
@@ -355,9 +385,7 @@
             document.getElementById('query-results-card').style.display = 'block';
             document.getElementById('query-loading').style.display = 'flex';
 
-            fetch(`{{ route('medical-records.search') }}?search=${encodeURIComponent(search)}&page=${page}`, {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-            })
+            pcFetch(`{{ route('medical-records.search') }}?search=${encodeURIComponent(search)}&page=${page}`)
             .then(r => r.json())
             .then(data => {
                 document.getElementById('query-loading').style.display = 'none';
@@ -367,7 +395,7 @@
                 }
                 renderTable(data, 'query-table', 'query-no-results', 'query-pagination', false, function(p) { queryPage = p; queryRecords(p); });
             })
-            .catch(() => { document.getElementById('query-loading').style.display = 'none'; });
+            .catch(() => { document.getElementById('query-loading').style.display = 'none'; Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error }); });
         }
 
         @if(auth()->user()->isCenterManager())
@@ -390,17 +418,37 @@
             let search = document.getElementById('filter-input').value;
             document.getElementById('all-loading').style.display = 'flex';
 
-            fetch(`{{ route('medical-records.data') }}?search=${encodeURIComponent(search)}&page=${page}`, {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-            })
+            pcFetch(`{{ route('medical-records.data') }}?search=${encodeURIComponent(search)}&page=${page}`)
             .then(r => r.json())
             .then(data => {
                 document.getElementById('all-loading').style.display = 'none';
                 renderTable(data, 'all-table', 'all-no-results', 'all-pagination', true, function(p) { allPage = p; fetchAllRecords(p); });
             })
-            .catch(() => { document.getElementById('all-loading').style.display = 'none'; });
+            .catch(() => { document.getElementById('all-loading').style.display = 'none'; Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error }); });
         }
         @endif
+
+        let nationalIdTimer;
+        document.getElementById('national_id').addEventListener('blur', function() {
+            let val = this.value.trim();
+            let warning = document.getElementById('national-id-warning');
+            warning.classList.add('d-none');
+            if (val.length < 3) return;
+            clearTimeout(nationalIdTimer);
+            nationalIdTimer = setTimeout(function() {
+                pcFetch('/medical-records/check-national-id?national_id=' + encodeURIComponent(val))
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.exists) {
+                            warning.textContent = @json(__('medical_records.national_id_exists_warning'))
+                                .replace(':name', data.record.full_name)
+                                .replace(':center', data.record.center);
+                            warning.classList.remove('d-none');
+                        }
+                    })
+                    .catch(() => {});
+            }, 300);
+        });
 
         document.getElementById('record-form').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -419,13 +467,10 @@
                 notes: document.getElementById('notes').value,
             };
 
-            fetch('{{ route("medical-records.store") }}', {
+            pcFetch('{{ route("medical-records.store") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify(payload)
             })
@@ -440,7 +485,7 @@
                         .then(() => { window.location.href = '/medical-records/' + body.record.id; });
                 }
             })
-            .catch(() => { btn.disabled = false; document.getElementById('add-loading').style.display = 'none'; });
+            .catch(() => { btn.disabled = false; document.getElementById('add-loading').style.display = 'none'; Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error }); });
         });
 
         function renderTable(data, tbodyId, noResultsId, paginationId, showCreator, onPageClick) {
@@ -469,14 +514,41 @@
 
             let container = document.getElementById(paginationId);
             if (data.last_page <= 1) { container.innerHTML = ''; return; }
-            let html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0">';
-            for (let p = 1; p <= data.last_page; p++) {
-                html += `<li class="page-item ${p === data.current_page ? 'active' : ''}"><a class="page-link" href="#" data-page="${p}">${p}</a></li>`;
-            }
+
+            let current = data.current_page;
+            let last = data.last_page;
+            let pages = [];
+            let delta = 2;
+            pages.push(1);
+            let rangeStart = Math.max(2, current - delta);
+            let rangeEnd = Math.min(last - 1, current + delta);
+            if (rangeStart > 2) pages.push('...');
+            for (let p = rangeStart; p <= rangeEnd; p++) pages.push(p);
+            if (rangeEnd < last - 1) pages.push('...');
+            if (last > 1) pages.push(last);
+
+            let prevDisabled = current === 1 ? ' disabled' : '';
+            let nextDisabled = current === last ? ' disabled' : '';
+            let html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap">';
+            html += `<li class="page-item${prevDisabled}"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+            pages.forEach(function(p) {
+                if (p === '...') {
+                    html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                } else {
+                    html += `<li class="page-item ${p === current ? 'active' : ''}"><a class="page-link" href="#" data-page="${p}">${p}</a></li>`;
+                }
+            });
+            html += `<li class="page-item${nextDisabled}"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
             html += '</ul></nav>';
+            html += `<div class="text-center text-muted mt-1" style="font-size:.8rem">${data.from}-${data.to} {{ __('common.of') }} ${data.total}</div>`;
             container.innerHTML = html;
+
             container.querySelectorAll('[data-page]').forEach(link => {
-                link.addEventListener('click', function(e) { e.preventDefault(); onPageClick(parseInt(this.dataset.page)); });
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    let page = parseInt(this.dataset.page);
+                    if (page >= 1 && page <= last) onPageClick(page);
+                });
             });
         }
 

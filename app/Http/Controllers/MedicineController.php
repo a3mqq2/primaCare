@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreMedicineRequest;
 use App\Http\Requests\UpdateMedicineRequest;
 use App\Models\Medicine;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class MedicineController extends Controller
 {
@@ -16,7 +18,7 @@ class MedicineController extends Controller
 
     public function data(Request $request)
     {
-        $query = Medicine::query();
+        $query = Medicine::withCount('dispensings')->withSum('dispensings', 'quantity');
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -30,6 +32,46 @@ class MedicineController extends Controller
         return response()->json($medicines);
     }
 
+    public function print(Request $request)
+    {
+        $query = Medicine::withCount('dispensings')->withSum('dispensings', 'quantity');
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        $medicines = $query->latest()->limit(500)->get();
+
+        return view('medicines.print', compact('medicines'));
+    }
+
+    public function dispensingHistory()
+    {
+        return view('medicines.dispensings');
+    }
+
+    public function dispensingHistoryData(Request $request)
+    {
+        $query = \App\Models\Dispensing::with(['medicalRecord.center', 'medicine', 'dispensedBy']);
+
+        if ($medicineId = $request->input('medicine_id')) {
+            $query->where('medicine_id', $medicineId);
+        }
+
+        if ($dateFrom = $request->input('date_from')) {
+            $query->whereDate('dispensed_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo = $request->input('date_to')) {
+            $query->whereDate('dispensed_at', '<=', $dateTo);
+        }
+
+        return response()->json($query->latest('dispensed_at')->paginate(20));
+    }
+
     public function search(Request $request)
     {
         $query = $request->input('q', '');
@@ -38,11 +80,15 @@ class MedicineController extends Controller
             return response()->json([]);
         }
 
-        $medicines = Medicine::where('name', 'like', "%{$query}%")
-            ->select('id', 'name')
-            ->orderBy('name')
-            ->limit(20)
-            ->get();
+        $cacheKey = 'medicines_search_' . md5($query);
+
+        $medicines = Cache::remember($cacheKey, 300, function () use ($query) {
+            return Medicine::where('name', 'like', "%{$query}%")
+                ->select('id', 'name')
+                ->orderBy('name')
+                ->limit(20)
+                ->get();
+        });
 
         return response()->json($medicines);
     }
@@ -57,7 +103,9 @@ class MedicineController extends Controller
         $data = $request->validated();
         $data['created_by'] = auth()->id();
 
-        Medicine::create($data);
+        $medicine = Medicine::create($data);
+
+        ActivityLogger::log('created', $medicine);
 
         return response()->json([
             'success' => true,
@@ -76,7 +124,10 @@ class MedicineController extends Controller
 
     public function update(UpdateMedicineRequest $request, Medicine $medicine)
     {
+        $oldValues = $medicine->getOriginal();
         $medicine->update($request->validated());
+
+        ActivityLogger::log('updated', $medicine, $oldValues);
 
         return response()->json([
             'success' => true,
@@ -92,6 +143,8 @@ class MedicineController extends Controller
                 'message' => __('medicines.cannot_delete_in_use'),
             ], 409);
         }
+
+        ActivityLogger::log('deleted', $medicine);
 
         $medicine->delete();
 

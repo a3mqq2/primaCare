@@ -3,6 +3,7 @@
 @section('title', __('statistics.title') . ' - PrimaCare')
 
 @push('css')
+<link href="{{ asset('assets/plugins/choices/choices.min.css') }}" rel="stylesheet" />
 <style>
     .stat-card {
         border: none;
@@ -57,6 +58,20 @@
     .support-table td {
         font-size: .8rem;
     }
+    .choices { margin-bottom: 0; }
+    .choices .choices__inner {
+        min-height: 31px;
+        padding: 2px 4px;
+        font-size: .875rem;
+        border-color: var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        border-radius: var(--bs-border-radius);
+    }
+    .choices .choices__input { font-size: .875rem; background-color: transparent; color: var(--bs-body-color); }
+    .choices .choices__list--dropdown { border-color: var(--bs-border-color); background-color: var(--bs-body-bg); }
+    .choices .choices__list--dropdown .choices__item { color: var(--bs-body-color); font-size: .875rem; }
+    .choices .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: var(--bs-primary); color: #fff; }
+    .choices .choices__list--single .choices__item { color: var(--bs-body-color); }
 </style>
 @endpush
 
@@ -74,7 +89,6 @@
             </button>
         </div>
 
-        {{-- Filters --}}
         <div class="card mb-3 no-print">
             <div class="card-body">
                 <div class="row g-2 align-items-end">
@@ -82,9 +96,6 @@
                         <label class="form-label mb-1 small">{{ __('statistics.center') }}</label>
                         <select id="filter-center" class="form-select form-select-sm">
                             <option value="">{{ __('statistics.all_centers') }}</option>
-                            @foreach($centers as $center)
-                            <option value="{{ $center->id }}">{{ $center->name }}</option>
-                            @endforeach
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -104,7 +115,6 @@
             </div>
         </div>
 
-        {{-- Summary Cards --}}
         <div class="row g-3 mb-3">
             <div class="col-md-3">
                 <div class="card stat-card h-100">
@@ -160,7 +170,6 @@
             </div>
         </div>
 
-        {{-- Charts Row 1: Records by Center + Records by Gender --}}
         <div class="row g-3 mb-3">
             <div class="col-lg-8">
                 <div class="card chart-card">
@@ -184,7 +193,6 @@
             </div>
         </div>
 
-        {{-- Chart Row 2: Records by Date --}}
         <div class="row g-3 mb-3">
             <div class="col-12">
                 <div class="card">
@@ -203,7 +211,6 @@
             </div>
         </div>
 
-        {{-- Charts Row 3: Dispensings by Center + Top Medicines --}}
         <div class="row g-3 mb-3">
             <div class="col-lg-6">
                 <div class="card chart-card">
@@ -227,7 +234,6 @@
             </div>
         </div>
 
-        {{-- Support Tables --}}
         <div class="row g-3 mb-3">
             <div class="col-lg-6">
                 <div class="card">
@@ -281,6 +287,7 @@
 
 @push('js')
 <script src="{{ asset('assets/plugins/apexcharts/apexcharts.min.js') }}"></script>
+<script src="{{ asset('assets/plugins/choices/choices.min.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let currentPeriod = 'monthly';
@@ -299,7 +306,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const chartColors = ['#3b7ddd', '#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c', '#6610f2'];
 
-    // Initialize charts
+    function initSearchSelect(selectEl, url, labelFn) {
+        var choices = new Choices(selectEl, {
+            searchEnabled: true,
+            removeItemButton: true,
+            shouldSort: false,
+            placeholderValue: '',
+            itemSelectText: '',
+            noResultsText: '',
+            noChoicesText: ''
+        });
+
+        function loadOptions(search) {
+            pcFetch(url + '?search=' + encodeURIComponent(search || ''))
+                .then(function(r) { return r.json(); })
+                .then(function(items) {
+                    choices.clearChoices();
+                    choices.setChoices(
+                        items.map(function(item) { return { value: String(item.id), label: labelFn(item) }; }),
+                        'value', 'label', true
+                    );
+                })
+                .catch(function() {
+                    Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
+                });
+        }
+        loadOptions('');
+
+        selectEl.addEventListener('search', function(e) {
+            loadOptions(e.detail.value);
+        });
+
+        return choices;
+    }
+
+    var centerChoices = initSearchSelect(
+        document.getElementById('filter-center'),
+        '/centers/search',
+        function(c) { return window.PrimaCare.locale === 'ar' ? c.name_ar : c.name_en; }
+    );
+
     let chartRecordsCenter = new ApexCharts(document.getElementById('chart-records-center'), getBarOptions('{{ __("statistics.records") }}'));
     let chartRecordsGender = new ApexCharts(document.getElementById('chart-records-gender'), getDonutOptions());
     let chartRecordsDate = new ApexCharts(document.getElementById('chart-records-date'), getAreaOptions());
@@ -312,16 +358,14 @@ document.addEventListener('DOMContentLoaded', function() {
     chartDispensingsCenter.render();
     chartTopMedicines.render();
 
-    // Fetch data
     fetchStats();
 
-    // Event listeners
     document.getElementById('filter-center').addEventListener('change', fetchStats);
     document.getElementById('filter-date-from').addEventListener('change', fetchStats);
     document.getElementById('filter-date-to').addEventListener('change', fetchStats);
 
     document.getElementById('reset-btn').addEventListener('click', function() {
-        document.getElementById('filter-center').value = '';
+        centerChoices.removeActiveItems();
         document.getElementById('filter-date-from').value = '';
         document.getElementById('filter-date-to').value = '';
         fetchStats();
@@ -340,7 +384,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Observe theme changes
     new MutationObserver(function() {
         if (statsData) renderAllCharts(statsData);
     }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
@@ -361,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
         isLoading = true;
         document.getElementById('loading').style.display = 'flex';
 
-        fetch(`{{ route('admin.statistics.data') }}?${buildParams()}`, {
+        pcFetch(`{{ route('admin.statistics.data') }}?${buildParams()}`, {
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(r => r.json())
@@ -373,9 +416,10 @@ document.addEventListener('DOMContentLoaded', function() {
             renderAllCharts(data);
             updateTables(data);
         })
-        .catch(() => {
+        .catch(function() {
             isLoading = false;
             document.getElementById('loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -387,7 +431,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderAllCharts(data) {
-        // Records by center
         chartRecordsCenter.updateOptions({
             xaxis: {
                 categories: data.records_by_center.map(r => r.center),
@@ -402,7 +445,6 @@ document.addEventListener('DOMContentLoaded', function() {
             data: data.records_by_center.map(r => r.count)
         }]);
 
-        // Records by gender
         let genderData = data.records_by_gender;
         chartRecordsGender.updateOptions({
             labels: genderData.map(g => genderLabels[g.gender] || g.gender),
@@ -411,10 +453,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         chartRecordsGender.updateSeries(genderData.map(g => g.count));
 
-        // Date chart
         updateDateChart(data.records_by_date);
 
-        // Dispensings by center
         chartDispensingsCenter.updateOptions({
             xaxis: {
                 categories: data.dispensings_by_center.map(r => r.center),
@@ -429,7 +469,6 @@ document.addEventListener('DOMContentLoaded', function() {
             data: data.dispensings_by_center.map(r => r.count)
         }]);
 
-        // Top medicines
         chartTopMedicines.updateOptions({
             xaxis: {
                 categories: data.top_medicines.map(m => m.name),
@@ -463,7 +502,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateTables(data) {
-        // Records by center table
         let tbody1 = document.getElementById('table-records-center');
         if (data.records_by_center.length === 0) {
             tbody1.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">{{ __("statistics.no_data") }}</td></tr>';
@@ -473,7 +511,6 @@ document.addEventListener('DOMContentLoaded', function() {
             ).join('');
         }
 
-        // Top medicines table
         let tbody2 = document.getElementById('table-top-medicines');
         if (data.top_medicines.length === 0) {
             tbody2.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">{{ __("statistics.no_data") }}</td></tr>';

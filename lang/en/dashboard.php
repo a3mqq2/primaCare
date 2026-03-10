@@ -26,6 +26,8 @@ return [
     'admin_medical_records' => 'Medical Records',
     'dispensing_log' => 'Dispensing Log',
     'statistics' => 'Statistics',
+    'cities' => 'Cities',
+    'activity_logs' => 'Activity Log',
 
     // Daily Dashboard
     'daily_dashboard' => 'Daily Dashboard',

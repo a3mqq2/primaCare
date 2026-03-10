@@ -4,6 +4,7 @@
 
 @push('css')
 <link href="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" />
+<link href="{{ asset('assets/plugins/choices/choices.min.css') }}" rel="stylesheet" />
 <style>
     .loading-overlay {
         position: absolute;
@@ -21,6 +22,19 @@
     [data-bs-theme="dark"] .loading-overlay {
         background: rgba(0,0,0,0.5);
     }
+    .choices { margin-bottom: 0; }
+    .choices .choices__inner {
+        min-height: 38px;
+        padding: 4px 8px;
+        border-color: var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        border-radius: var(--bs-border-radius);
+    }
+    .choices .choices__input { background-color: transparent; color: var(--bs-body-color); }
+    .choices .choices__list--dropdown { border-color: var(--bs-border-color); background-color: var(--bs-body-bg); }
+    .choices .choices__list--dropdown .choices__item { color: var(--bs-body-color); }
+    .choices .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: var(--bs-primary); color: #fff; }
+    .choices .choices__list--single .choices__item { color: var(--bs-body-color); }
 </style>
 @endpush
 
@@ -29,9 +43,17 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">{{ __('users.title') }}</h4>
-            <a href="{{ route('users.create') }}" class="btn btn-primary">
-                <i class="ti ti-plus me-1"></i>{{ __('users.add_user') }}
-            </a>
+            <div>
+                <button type="button" class="btn btn-outline-success me-1" id="export-btn">
+                    <i class="ti ti-file-spreadsheet me-1"></i>{{ __('common.export_excel') }}
+                </button>
+                <button type="button" class="btn btn-secondary me-1" id="print-btn">
+                    <i class="ti ti-printer me-1"></i>{{ __('common.print') }}
+                </button>
+                <a href="{{ route('users.create') }}" class="btn btn-primary">
+                    <i class="ti ti-plus me-1"></i>{{ __('users.add_user') }}
+                </a>
+            </div>
         </div>
 
         <div class="card position-relative">
@@ -54,9 +76,6 @@
                     <div class="col-md-3">
                         <select id="filter-center" class="form-select">
                             <option value="">{{ __('users.all_centers') }}</option>
-                            @foreach($centers as $center)
-                                <option value="{{ $center->id }}">{{ $center->name }}</option>
-                            @endforeach
                         </select>
                     </div>
                     @endif
@@ -144,9 +163,6 @@
                             <label class="form-label">{{ __('users.center') }} <span class="text-danger">*</span></label>
                             <select name="center_id" id="edit-center_id" class="form-select">
                                 <option value="">{{ __('users.select_center') }}</option>
-                                @foreach($centers as $center)
-                                    <option value="{{ $center->id }}">{{ $center->name }}</option>
-                                @endforeach
                             </select>
                             <div class="invalid-feedback" id="edit-error-center_id"></div>
                         </div>
@@ -185,11 +201,11 @@
 
 @push('js')
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
+<script src="{{ asset('assets/plugins/choices/choices.min.js') }}"></script>
 <script>
     let currentPage = 1;
     let searchTimer;
-    let locale = '{{ app()->getLocale() }}';
-    let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    let locale = window.PrimaCare.locale;
     let isSystemAdmin = {{ auth()->user()->isSystemAdmin() ? 'true' : 'false' }};
     let roleLabels = {
         system_admin: '{{ __("users.roles.system_admin") }}',
@@ -203,9 +219,58 @@
     let impersonateUrl = '{{ url("/impersonate") }}';
     let editModal;
     let currentRecordId = null;
+    let filterCenterChoices = null;
+    let editCenterChoices = null;
+
+    function initCenterChoices(selectEl) {
+        let choices = new Choices(selectEl, {
+            searchEnabled: true,
+            removeItemButton: true,
+            shouldSort: false,
+            placeholderValue: '',
+            itemSelectText: '',
+            noResultsText: '',
+            noChoicesText: ''
+        });
+
+        function loadCenters(search) {
+            pcFetch('/centers/search?search=' + encodeURIComponent(search || ''))
+                .then(r => r.json())
+                .then(centers => {
+                    let locale = window.PrimaCare.locale;
+                    choices.clearChoices();
+                    choices.setChoices(
+                        centers.map(c => ({ value: String(c.id), label: locale === 'ar' ? c.name_ar : c.name_en })),
+                        'value', 'label', true
+                    );
+                });
+        }
+        loadCenters('');
+
+        selectEl.addEventListener('search', function(e) {
+            loadCenters(e.detail.value);
+        });
+
+        return choices;
+    }
 
     document.addEventListener('DOMContentLoaded', function() {
         editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+        let filterCenterEl = document.getElementById('filter-center');
+        if (filterCenterEl) {
+            filterCenterChoices = initCenterChoices(filterCenterEl);
+            filterCenterEl.addEventListener('change', function() {
+                currentPage = 1;
+                loadUsers();
+            });
+        }
+
+        let editCenterEl = document.getElementById('edit-center_id');
+        if (editCenterEl && editCenterEl.type !== 'hidden') {
+            editCenterChoices = initCenterChoices(editCenterEl);
+        }
+
         loadUsers();
 
         document.getElementById('search').addEventListener('input', function() {
@@ -221,16 +286,16 @@
             loadUsers();
         });
 
-        let filterCenter = document.getElementById('filter-center');
-        if (filterCenter) {
-            filterCenter.addEventListener('change', function() {
-                currentPage = 1;
-                loadUsers();
-            });
-        }
-
         document.getElementById('save-btn').addEventListener('click', saveRecord);
         document.getElementById('delete-btn').addEventListener('click', deleteRecord);
+
+        document.getElementById('print-btn').addEventListener('click', function() {
+            window.open(`{{ route('users.print') }}?${buildUserParams()}`, '_blank');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', function() {
+            window.location.href = `{{ route('users.export') }}?${buildUserParams()}`;
+        });
 
         if (isSystemAdmin) {
             document.getElementById('edit-role').addEventListener('change', function() {
@@ -250,7 +315,10 @@
         } else {
             centerField.style.display = 'none';
             managerField.style.display = 'none';
-            document.getElementById('edit-center_id').value = '';
+            if (editCenterChoices) {
+                editCenterChoices.removeActiveItems();
+                editCenterChoices.setChoiceByValue('');
+            }
             document.getElementById('edit-is_center_manager').checked = false;
         }
     }
@@ -263,9 +331,7 @@
         document.getElementById('modal-loading').style.display = 'flex';
         editModal.show();
 
-        fetch(`/users/${id}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        pcFetch(`/users/${id}`)
         .then(r => r.json())
         .then(result => {
             document.getElementById('modal-loading').style.display = 'none';
@@ -278,8 +344,14 @@
 
             if (isSystemAdmin) {
                 toggleCenterFields(user.role);
-                if (user.role === 'center_employee') {
-                    document.getElementById('edit-center_id').value = user.center_id || '';
+                if (user.role === 'center_employee' && user.center_id && editCenterChoices) {
+                    let centerLabel = user.center
+                        ? (locale === 'ar' ? user.center.name_ar : user.center.name_en)
+                        : String(user.center_id);
+                    editCenterChoices.setChoices(
+                        [{ value: String(user.center_id), label: centerLabel, selected: true }],
+                        'value', 'label', false
+                    );
                 }
             }
 
@@ -292,6 +364,7 @@
         .catch(() => {
             document.getElementById('modal-loading').style.display = 'none';
             editModal.hide();
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -311,13 +384,10 @@
             is_center_manager: document.getElementById('edit-is_center_manager').checked ? 1 : 0
         };
 
-        fetch(`/users/${currentRecordId}`, {
+        pcFetch(`/users/${currentRecordId}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload)
         })
@@ -340,6 +410,7 @@
         .catch(() => {
             btn.disabled = false;
             document.getElementById('modal-loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -356,13 +427,8 @@
             if (result.isConfirmed) {
                 document.getElementById('modal-loading').style.display = 'flex';
 
-                fetch(`/users/${currentRecordId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
+                pcFetch(`/users/${currentRecordId}`, {
+                    method: 'DELETE'
                 })
                 .then(response => response.json().then(data => ({status: response.status, body: data})))
                 .then(({status, body}) => {
@@ -377,9 +443,22 @@
                 })
                 .catch(() => {
                     document.getElementById('modal-loading').style.display = 'none';
+                    Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
                 });
             }
         });
+    }
+
+    function buildUserParams() {
+        let params = new URLSearchParams();
+        let search = document.getElementById('search').value;
+        if (search) params.set('search', search);
+        let role = document.getElementById('filter-role').value;
+        if (role) params.set('role', role);
+        let filterCenter = document.getElementById('filter-center');
+        let centerId = filterCenter ? filterCenter.value : '';
+        if (centerId) params.set('center_id', centerId);
+        return params.toString();
     }
 
     function loadUsers(page) {
@@ -395,9 +474,7 @@
         if (role) params += `&role=${role}`;
         if (centerId) params += `&center_id=${centerId}`;
 
-        fetch(`{{ route('users.data') }}?${params}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        pcFetch(`{{ route('users.data') }}?${params}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('loading').style.display = 'none';
@@ -406,6 +483,7 @@
         })
         .catch(() => {
             document.getElementById('loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -439,7 +517,7 @@
             let impersonateCell = '';
             if (isSystemAdmin) {
                 if (user.role !== 'system_admin') {
-                    impersonateCell = `<td class="text-center"><button class="btn btn-sm btn-outline-warning border-0 p-1" onclick="event.stopPropagation(); impersonateUser(${user.id}, '${escapeHtml(user.name)}')" title="${impersonateConfirmTitle}"><i class="ti ti-user-share"></i></button></td>`;
+                    impersonateCell = `<td class="text-center"><button class="btn btn-sm btn-outline-warning border-0 p-1 btn-impersonate" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}" title="${impersonateConfirmTitle}"><i class="ti ti-user-share"></i></button></td>`;
                 } else {
                     impersonateCell = '<td></td>';
                 }
@@ -458,6 +536,13 @@
         });
 
         tbody.innerHTML = html;
+
+        tbody.querySelectorAll('.btn-impersonate').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                impersonateUser(this.dataset.userId, this.dataset.userName);
+            });
+        });
     }
 
     function renderPagination(data) {
@@ -516,13 +601,10 @@
             confirmButtonText: impersonateConfirmYes
         }).then((result) => {
             if (result.isConfirmed) {
-                fetch(`${impersonateUrl}/${userId}`, {
+                pcFetch(`${impersonateUrl}/${userId}`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'Content-Type': 'application/json'
                     }
                 })
                 .then(response => response.json().then(data => ({status: response.status, body: data})))
@@ -534,7 +616,7 @@
                     }
                 })
                 .catch(() => {
-                    Swal.fire({ icon: 'error', title: 'Error' });
+                    Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
                 });
             }
         });

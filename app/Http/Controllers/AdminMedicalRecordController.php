@@ -11,16 +11,13 @@ class AdminMedicalRecordController extends Controller
 {
     public function index()
     {
-        $centers = Center::orderBy('name_ar')->get();
-        $employees = User::where('role', 'center_employee')->orderBy('name')->get();
-
-        return view('admin.medical-records.index', compact('centers', 'employees'));
+        return view('admin.medical-records.index');
     }
 
     public function data(Request $request)
     {
         $query = $this->applyFilters($request);
-        $records = $query->latest()->paginate(20);
+        $records = $query->latest()->paginate(10);
 
         return response()->json($records);
     }
@@ -33,10 +30,21 @@ class AdminMedicalRecordController extends Controller
         return view('admin.medical-records.show', compact('medicalRecord'));
     }
 
+    public function printRecord(MedicalRecord $medicalRecord)
+    {
+        $medicalRecord->load(['creator', 'center']);
+        $dispensings = $medicalRecord->dispensings()
+            ->with(['medicine', 'dispensedBy'])
+            ->latest('dispensed_at')
+            ->get();
+
+        return view('medical-records.print', compact('medicalRecord', 'dispensings'));
+    }
+
     public function print(Request $request)
     {
         $query = $this->applyFilters($request);
-        $records = $query->latest()->get();
+        $records = $query->latest()->limit(500)->get();
 
         return view('admin.medical-records.print', compact('records'));
     }

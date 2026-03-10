@@ -38,14 +38,9 @@
                             <h6 class="text-overflow m-0">{{ __('dashboard.welcome_back') }}</h6>
                         </div>
 
-                        <a href="#!" class="dropdown-item">
+                        <a href="{{ route('profile.index') }}" class="dropdown-item">
                             <i class="ti ti-user-circle me-1 fs-lg align-middle"></i>
                             <span class="align-middle">{{ __('dashboard.profile') }}</span>
-                        </a>
-
-                        <a href="javascript:void(0);" class="dropdown-item">
-                            <i class="ti ti-settings-2 me-1 fs-lg align-middle"></i>
-                            <span class="align-middle">{{ __('dashboard.account_settings') }}</span>
                         </a>
 
                         <form method="POST" action="{{ route('logout') }}">
@@ -69,13 +64,13 @@
                         <span class="menu-text">{{ __('dashboard.dashboard') }}</span>
                     </a>
                 </li>
+                @if(auth()->user()->isSystemAdmin() || auth()->user()->isCenterManager())
                 <li class="side-nav-item">
                     <a href="{{ route('centers.index') }}" class="side-nav-link">
                         <span class="menu-icon"><i class="ti ti-building-hospital"></i></span>
                         <span class="menu-text">{{ __('dashboard.centers') }}</span>
                     </a>
                 </li>
-                @if(auth()->user()->isSystemAdmin() || auth()->user()->isCenterManager())
                 <li class="side-nav-item">
                     <a href="{{ route('users.index') }}" class="side-nav-link">
                         <span class="menu-icon"><i class="ti ti-users"></i></span>
@@ -84,6 +79,12 @@
                 </li>
                 @endif
                 @if(auth()->user()->isSystemAdmin())
+                <li class="side-nav-item">
+                    <a href="{{ route('cities.index') }}" class="side-nav-link">
+                        <span class="menu-icon"><i class="ti ti-map-pin"></i></span>
+                        <span class="menu-text">{{ __('dashboard.cities') }}</span>
+                    </a>
+                </li>
                 <li class="side-nav-item">
                     <a href="{{ route('medicines.index') }}" class="side-nav-link">
                         <span class="menu-icon"><i class="ti ti-pill"></i></span>
@@ -108,6 +109,12 @@
                         <span class="menu-text">{{ __('dashboard.statistics') }}</span>
                     </a>
                 </li>
+                <li class="side-nav-item">
+                    <a href="{{ route('admin.activity-logs.index') }}" class="side-nav-link">
+                        <span class="menu-icon"><i class="ti ti-history"></i></span>
+                        <span class="menu-text">{{ __('dashboard.activity_logs') }}</span>
+                    </a>
+                </li>
                 @endif
                 @if(auth()->user()->isCenterEmployee())
                 <li class="side-nav-item">
@@ -119,6 +126,12 @@
                 @endif
 
                 <li class="side-nav-title mt-2">{{ __('dashboard.account_settings') }}</li>
+                <li class="side-nav-item">
+                    <a href="{{ route('profile.index') }}" class="side-nav-link">
+                        <span class="menu-icon"><i class="ti ti-user-circle"></i></span>
+                        <span class="menu-text">{{ __('dashboard.profile') }}</span>
+                    </a>
+                </li>
                 <li class="side-nav-item">
                     <form method="POST" action="{{ route('logout') }}" id="sidebar-logout-form">
                         @csrf

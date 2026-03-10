@@ -53,9 +53,14 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">{{ __('dispensings.title') }}</h4>
-            <button type="button" class="btn btn-secondary" id="print-btn">
-                <i class="ti ti-printer me-1"></i>{{ __('dispensings.print') }}
-            </button>
+            <div>
+                <button type="button" class="btn btn-outline-success me-1" id="export-btn">
+                    <i class="ti ti-file-spreadsheet me-1"></i>{{ __('common.export_excel') }}
+                </button>
+                <button type="button" class="btn btn-secondary" id="print-btn">
+                    <i class="ti ti-printer me-1"></i>{{ __('dispensings.print') }}
+                </button>
+            </div>
         </div>
 
         <div class="card mb-3">
@@ -70,9 +75,6 @@
                     <div class="col-md-4 col-lg-3">
                         <select id="filter-center" class="form-select form-select-sm">
                             <option value="">{{ __('dispensings.all_centers') }}</option>
-                            @foreach($centers as $center)
-                            <option value="{{ $center->id }}">{{ $center->name }}</option>
-                            @endforeach
                         </select>
                     </div>
                     <div class="col-md-4 col-lg-3">
@@ -81,9 +83,6 @@
                     <div class="col-md-4 col-lg-3">
                         <select id="filter-employee" class="form-select form-select-sm">
                             <option value="">{{ __('dispensings.all_employees') }}</option>
-                            @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }}</option>
-                            @endforeach
                         </select>
                     </div>
                     <div class="col-md-4 col-lg-3">
@@ -185,16 +184,51 @@
         var detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
         var genderLabels = { male: '{{ __("medical_records.male") }}', female: '{{ __("medical_records.female") }}' };
 
-        var employeeChoices = new Choices(document.getElementById('filter-employee'), {
-            searchEnabled: true,
-            removeItemButton: true,
-            shouldSort: false,
-            placeholderValue: '{{ __("dispensings.all_employees") }}',
-            searchPlaceholderValue: '{{ __("dispensings.filter_employee") }}',
-            itemSelectText: '',
-            noResultsText: '{{ __("dispensings.no_results") }}',
-            noChoicesText: '{{ __("dispensings.no_results") }}'
-        });
+        function initSearchSelect(selectEl, url, labelFn) {
+            var choices = new Choices(selectEl, {
+                searchEnabled: true,
+                removeItemButton: true,
+                shouldSort: false,
+                placeholderValue: '',
+                itemSelectText: '',
+                noResultsText: '',
+                noChoicesText: ''
+            });
+
+            function loadOptions(search) {
+                pcFetch(url + '?search=' + encodeURIComponent(search || ''))
+                    .then(function(r) { return r.json(); })
+                    .then(function(items) {
+                        choices.clearChoices();
+                        choices.setChoices(
+                            items.map(function(item) { return { value: String(item.id), label: labelFn(item) }; }),
+                            'value', 'label', true
+                        );
+                    })
+                    .catch(function() {
+                        Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
+                    });
+            }
+            loadOptions('');
+
+            selectEl.addEventListener('search', function(e) {
+                loadOptions(e.detail.value);
+            });
+
+            return choices;
+        }
+
+        var centerChoices = initSearchSelect(
+            document.getElementById('filter-center'),
+            '/centers/search',
+            function(c) { return window.PrimaCare.locale === 'ar' ? c.name_ar : c.name_en; }
+        );
+
+        var employeeChoices = initSearchSelect(
+            document.getElementById('filter-employee'),
+            '/users/search-employees',
+            function(e) { return e.name; }
+        );
 
         fetchData();
 
@@ -211,9 +245,9 @@
 
         document.getElementById('reset-btn').addEventListener('click', function() {
             document.getElementById('general-search').value = '';
-            document.getElementById('filter-center').value = '';
+            centerChoices.removeActiveItems();
             document.getElementById('filter-medicine').value = '';
-            employeeChoices.setChoiceByValue('');
+            employeeChoices.removeActiveItems();
             document.getElementById('filter-patient').value = '';
             document.getElementById('filter-national-id').value = '';
             document.getElementById('filter-gender').value = '';
@@ -226,6 +260,10 @@
 
         document.getElementById('print-btn').addEventListener('click', function() {
             window.open('{{ route("admin.dispensings.print") }}?' + buildParams(), '_blank');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', function() {
+            window.location.href = '{{ route("admin.dispensings.export") }}?' + buildParams();
         });
 
         function debounceSearch() {
@@ -277,7 +315,7 @@
             page = page || currentPage;
             document.getElementById('loading').style.display = 'flex';
 
-            fetch('{{ route("admin.dispensings.data") }}?' + buildParams(page), {
+            pcFetch('{{ route("admin.dispensings.data") }}?' + buildParams(page), {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(function(r) { return r.json(); })
@@ -289,6 +327,7 @@
             .catch(function() {
                 isLoading = false;
                 document.getElementById('loading').style.display = 'none';
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         }
 
@@ -341,18 +380,42 @@
             var container = document.getElementById('pagination');
             if (data.last_page <= 1) { container.innerHTML = ''; return; }
 
-            var html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0">';
-            for (var p = 1; p <= data.last_page; p++) {
-                html += '<li class="page-item ' + (p === data.current_page ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
-            }
+            var current = data.current_page;
+            var last = data.last_page;
+            var pages = [];
+            var delta = 2;
+            pages.push(1);
+            var rangeStart = Math.max(2, current - delta);
+            var rangeEnd = Math.min(last - 1, current + delta);
+            if (rangeStart > 2) pages.push('...');
+            for (var p = rangeStart; p <= rangeEnd; p++) pages.push(p);
+            if (rangeEnd < last - 1) pages.push('...');
+            if (last > 1) pages.push(last);
+
+            var prevDisabled = current === 1 ? ' disabled' : '';
+            var nextDisabled = current === last ? ' disabled' : '';
+            var html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap">';
+            html += '<li class="page-item' + prevDisabled + '"><a class="page-link" href="#" data-page="' + (current - 1) + '">&laquo;</a></li>';
+            pages.forEach(function(pg) {
+                if (pg === '...') {
+                    html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                } else {
+                    html += '<li class="page-item ' + (pg === current ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + pg + '">' + pg + '</a></li>';
+                }
+            });
+            html += '<li class="page-item' + nextDisabled + '"><a class="page-link" href="#" data-page="' + (current + 1) + '">&raquo;</a></li>';
             html += '</ul></nav>';
+            html += '<div class="text-center text-muted mt-1" style="font-size:.8rem">' + data.from + '-' + data.to + ' {{ __("common.of") }} ' + data.total + '</div>';
             container.innerHTML = html;
 
             container.querySelectorAll('[data-page]').forEach(function(link) {
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
-                    currentPage = parseInt(this.dataset.page);
-                    fetchData(currentPage);
+                    var page = parseInt(this.dataset.page);
+                    if (page >= 1 && page <= last) {
+                        currentPage = page;
+                        fetchData(currentPage);
+                    }
                 });
             });
         }
@@ -362,7 +425,7 @@
             body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
             detailModal.show();
 
-            fetch('/admin/dispensings/' + id, {
+            pcFetch('/admin/dispensings/' + id, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(function(r) { return r.json(); })
@@ -394,6 +457,7 @@
             })
             .catch(function() {
                 body.innerHTML = '<div class="text-center py-4 text-muted">Error</div>';
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         };
 

@@ -7,6 +7,7 @@ use App\Models\Dispensing;
 use App\Models\MedicalRecord;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -31,19 +32,24 @@ class DashboardController extends Controller
         }
 
         $period = $request->input('period', 'today');
-        [$start, $end] = $this->getPeriodRange($period);
-        [$prevStart, $prevEnd] = $this->getPreviousPeriodRange($period);
+        $cacheKey = "dashboard_data_{$period}";
 
-        $useHourly = in_array($period, ['today', 'yesterday']);
+        $data = Cache::remember($cacheKey, 300, function () use ($period) {
+            [$start, $end] = $this->getPeriodRange($period);
+            [$prevStart, $prevEnd] = $this->getPreviousPeriodRange($period);
+            $useHourly = in_array($period, ['today', 'yesterday']);
 
-        return response()->json([
-            'summary' => $this->getSummary($start, $end, $prevStart, $prevEnd),
-            'hourly_activity' => $this->getActivity($start, $end, $useHourly),
-            'gender_distribution' => $this->getGenderDistribution($start, $end),
-            'active_centers' => $this->getActiveCenters($start, $end),
-            'top_medicines' => $this->getTopMedicines($start, $end),
-            'use_hourly' => $useHourly,
-        ]);
+            return [
+                'summary' => $this->getSummary($start, $end, $prevStart, $prevEnd),
+                'hourly_activity' => $this->getActivity($start, $end, $useHourly),
+                'gender_distribution' => $this->getGenderDistribution($start, $end),
+                'active_centers' => $this->getActiveCenters($start, $end),
+                'top_medicines' => $this->getTopMedicines($start, $end),
+                'use_hourly' => $useHourly,
+            ];
+        });
+
+        return response()->json($data);
     }
 
     private function getPeriodRange(string $period): array
@@ -234,24 +240,24 @@ class DashboardController extends Controller
 
         usort($result, fn ($a, $b) => $b['total'] - $a['total']);
 
-        return $result;
+        return array_slice($result, 0, 10);
     }
 
     private function getTopMedicines(Carbon $start, Carbon $end): array
     {
-        return Dispensing::select(
-                'medicine_id',
+        return Dispensing::join('medicines', 'dispensings.medicine_id', '=', 'medicines.id')
+            ->select(
+                'medicines.name',
                 DB::raw('count(*) as dispensing_count'),
-                DB::raw('sum(quantity) as total_quantity')
+                DB::raw('sum(dispensings.quantity) as total_quantity')
             )
-            ->whereBetween('dispensed_at', [$start, $end])
-            ->groupBy('medicine_id')
+            ->whereBetween('dispensings.dispensed_at', [$start, $end])
+            ->groupBy('dispensings.medicine_id', 'medicines.name')
             ->orderByDesc('dispensing_count')
             ->limit(10)
-            ->with('medicine')
             ->get()
             ->map(fn ($r) => [
-                'name' => $r->medicine->name ?? '-',
+                'name' => $r->name,
                 'dispensing_count' => $r->dispensing_count,
                 'total_quantity' => (int) $r->total_quantity,
             ])

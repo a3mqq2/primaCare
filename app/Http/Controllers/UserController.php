@@ -4,19 +4,59 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
-use App\Models\Center;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class UserController extends Controller
 {
     public function index()
     {
-        $centers = Center::orderBy('name_ar')->get();
+        return view('users.index');
+    }
 
-        return view('users.index', compact('centers'));
+    public function searchEmployees(Request $request)
+    {
+        $search = $request->input('search', '');
+        $cacheKey = 'employees_search_' . md5($search);
+
+        $results = Cache::remember($cacheKey, 300, function () use ($search) {
+            $query = User::where('role', 'center_employee');
+
+            if ($search) {
+                $query->where('name', 'like', "%{$search}%");
+            }
+
+            return $query->orderBy('name')->limit(50)->get(['id', 'name']);
+        });
+
+        return response()->json($results);
+    }
+
+    public function print(Request $request)
+    {
+        $query = User::with('center')->visibleTo(auth()->user());
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        if ($role = $request->input('role')) {
+            $query->where('role', $role);
+        }
+
+        if ($centerId = $request->input('center_id')) {
+            $query->where('center_id', $centerId);
+        }
+
+        $users = $query->latest()->limit(500)->get();
+
+        return view('users.print', compact('users'));
     }
 
     public function data(Request $request)
@@ -45,9 +85,7 @@ class UserController extends Controller
 
     public function create()
     {
-        $centers = Center::orderBy('name_ar')->get();
-
-        return view('users.create', compact('centers'));
+        return view('users.create');
     }
 
     public function store(StoreUserRequest $request)
@@ -72,7 +110,9 @@ class UserController extends Controller
             $data['username'] = explode('@', $data['email'])[0] . rand(100, 999);
         }
 
-        User::create($data);
+        $user = User::create($data);
+
+        ActivityLogger::log('created', $user);
 
         return response()->json([
             'success' => true,
@@ -118,7 +158,10 @@ class UserController extends Controller
             unset($data['password']);
         }
 
+        $oldValues = $user->getOriginal();
         $user->update($data);
+
+        ActivityLogger::log('updated', $user, $oldValues);
 
         return response()->json([
             'success' => true,
@@ -143,6 +186,8 @@ class UserController extends Controller
                 'message' => __('users.cannot_delete_last_admin'),
             ], 403);
         }
+
+        ActivityLogger::log('deleted', $user);
 
         $user->delete();
 
@@ -184,13 +229,7 @@ class UserController extends Controller
         session()->put('impersonator_id', $admin->id);
         session()->put('impersonator_name', $admin->name);
 
-        Log::info('Impersonation started', [
-            'admin_id' => $admin->id,
-            'admin_name' => $admin->name,
-            'target_user_id' => $user->id,
-            'target_user_name' => $user->name,
-            'ip' => request()->ip(),
-        ]);
+        ActivityLogger::log('impersonated', $user);
 
         Auth::loginUsingId($user->id);
 
@@ -210,12 +249,7 @@ class UserController extends Controller
 
         $currentUser = auth()->user();
 
-        Log::info('Impersonation ended', [
-            'admin_id' => $impersonatorId,
-            'impersonated_user_id' => $currentUser->id,
-            'impersonated_user_name' => $currentUser->name,
-            'ip' => request()->ip(),
-        ]);
+        ActivityLogger::log('left_impersonation', $currentUser);
 
         session()->forget('impersonator_id');
         session()->forget('impersonator_name');

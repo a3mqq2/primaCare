@@ -57,7 +57,7 @@ class User extends Authenticatable
 
     public function scopeVisibleTo($query, User $user)
     {
-        if ($user->isCenterManager()) {
+        if (!$user->isSystemAdmin()) {
             $query->where('center_id', $user->center_id);
         }
     }

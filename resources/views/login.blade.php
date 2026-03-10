@@ -9,6 +9,12 @@
             <p class="text-muted w-lg-75 mx-auto">{{ __('auth.sign_in_subtitle') }}</p>
         </div>
 
+        @if (session('status'))
+            <div class="alert alert-success text-center mt-3">
+                {{ session('status') }}
+            </div>
+        @endif
+
         <form class="mt-4" method="POST" action="{{ route('login') }}">
             @csrf
 
@@ -45,6 +51,7 @@
                     <input class="form-check-input form-check-input-light fs-14" type="checkbox" checked name="remember" id="remember" {{ old('remember') ? 'checked' : '' }} />
                     <label class="form-check-label" for="remember">{{ __('auth.keep_signed_in') }}</label>
                 </div>
+                <a href="{{ route('password.request') }}" class="text-muted small">{{ __('auth.forgot_password') }}</a>
             </div>
 
             <div class="d-grid">

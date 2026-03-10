@@ -26,6 +26,8 @@ return [
     'admin_medical_records' => 'السجلات الطبية',
     'dispensing_log' => 'سجل الأدوية المصروفة',
     'statistics' => 'الإحصائيات',
+    'cities' => 'المدن',
+    'activity_logs' => 'سجل النشاطات',
 
     // لوحة التحكم اليومية
     'daily_dashboard' => 'لوحة التحكم اليومية',

@@ -4,6 +4,7 @@
 
 @push('css')
 <link href="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" />
+<link href="{{ asset('assets/plugins/choices/choices.min.css') }}" rel="stylesheet" />
 <style>
     .loading-overlay {
         position: absolute;
@@ -79,6 +80,19 @@
         cursor: pointer;
         font-size: .875rem;
     }
+    .choices { margin-bottom: 0; }
+    .choices .choices__inner {
+        min-height: 38px;
+        padding: 4px 8px;
+        border-color: var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        border-radius: var(--bs-border-radius);
+    }
+    .choices .choices__input { background-color: transparent; color: var(--bs-body-color); }
+    .choices .choices__list--dropdown { border-color: var(--bs-border-color); background-color: var(--bs-body-bg); }
+    .choices .choices__list--dropdown .choices__item { color: var(--bs-body-color); }
+    .choices .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: var(--bs-primary); color: #fff; }
+    .choices .choices__list--single .choices__item { color: var(--bs-body-color); }
 </style>
 @endpush
 
@@ -117,9 +131,6 @@
                             <div class="input-group">
                                 <select name="city_id" id="city_id" class="form-select">
                                     <option value="">{{ __('centers.select_city') }}</option>
-                                    @foreach($cities as $city)
-                                        <option value="{{ $city->id }}">{{ $city->name_ar }} - {{ $city->name_en }}</option>
-                                    @endforeach
                                 </select>
                                 <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addCityModal">
                                     <i class="ti ti-plus"></i>
@@ -200,12 +211,41 @@
 
 @push('js')
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
+<script src="{{ asset('assets/plugins/choices/choices.min.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         let dropZone = document.getElementById('drop-zone');
         let logoInput = document.getElementById('logo-input');
         let selectedFile = null;
+
+        let citySelect = document.getElementById('city_id');
+        let cityChoices = new Choices(citySelect, {
+            searchEnabled: true,
+            removeItemButton: true,
+            shouldSort: false,
+            placeholderValue: '',
+            searchPlaceholderValue: '{{ __("centers.select_city") }}',
+            itemSelectText: '',
+            noResultsText: '',
+            noChoicesText: ''
+        });
+
+        function loadCities(search) {
+            pcFetch('/cities/search?search=' + encodeURIComponent(search || ''))
+                .then(r => r.json())
+                .then(cities => {
+                    cityChoices.clearChoices();
+                    cityChoices.setChoices(
+                        cities.map(c => ({ value: String(c.id), label: c.name_ar + ' - ' + c.name_en })),
+                        'value', 'label', true
+                    );
+                });
+        }
+        loadCities('');
+
+        citySelect.addEventListener('search', function(e) {
+            loadCities(e.detail.value);
+        });
 
         dropZone.addEventListener('click', function() {
             if (!selectedFile) logoInput.click();
@@ -268,13 +308,8 @@
             formData.append('notes', document.getElementById('notes').value);
             if (selectedFile) formData.append('logo', selectedFile);
 
-            fetch('{{ route("centers.store") }}', {
+            pcFetch('{{ route("centers.store") }}', {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
                 body: formData
             })
             .then(response => response.json().then(data => ({status: response.status, body: data})))
@@ -301,6 +336,7 @@
             .catch(() => {
                 btn.disabled = false;
                 document.getElementById('loading').style.display = 'none';
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         });
 
@@ -316,13 +352,10 @@
 
             btn.disabled = true;
 
-            fetch('{{ route("cities.store") }}', {
+            pcFetch('{{ route("cities.store") }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ name_ar: nameAr.value, name_en: nameEn.value })
             })
@@ -345,9 +378,8 @@
                 }
 
                 if (body.success) {
-                    let select = document.getElementById('city_id');
-                    let option = new Option(body.city.name_ar + ' - ' + body.city.name_en, body.city.id, true, true);
-                    select.appendChild(option);
+                    cityChoices.setChoices([{ value: String(body.city.id), label: body.city.name_ar + ' - ' + body.city.name_en }], 'value', 'label', false);
+                    cityChoices.setChoiceByValue(String(body.city.id));
 
                     nameAr.value = '';
                     nameEn.value = '';
@@ -363,6 +395,7 @@
             })
             .catch(() => {
                 btn.disabled = false;
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         });
     });

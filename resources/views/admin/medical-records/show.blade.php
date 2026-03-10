@@ -158,6 +158,9 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0 fw-semibold">{{ __('medical_records.record_details') }}</h5>
         <div class="d-flex gap-2">
+            <a href="{{ route('admin.medical-records.print-record', $medicalRecord->id) }}" target="_blank" class="btn btn-secondary btn-sm">
+                <i class="ti ti-printer me-1"></i>{{ __('medical_records.print_record') }}
+            </a>
             <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editModal">
                 <i class="ti ti-edit me-1"></i>{{ __('medical_records.edit') }}
             </button>
@@ -378,7 +381,6 @@
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         var dispenseLabel = '{{ __("medical_records.operation_dispense") }}';
         var searchUrl = '{{ route("medicines.search") }}';
         var noResultsText = '{{ __("medical_records.no_medicine_results") }}';
@@ -408,9 +410,7 @@
 
             acSpinner.style.display = 'block';
             acTimer = setTimeout(function() {
-                fetch(searchUrl + '?q=' + encodeURIComponent(val), {
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-                })
+                pcFetch(searchUrl + '?q=' + encodeURIComponent(val))
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     acSpinner.style.display = 'none';
@@ -507,9 +507,7 @@
         }
 
         function loadDispensings() {
-            fetch('{{ route("medical-records.dispensings", $medicalRecord->id) }}', {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-            })
+            pcFetch('{{ route("medical-records.dispensings", $medicalRecord->id) }}')
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 document.getElementById('dispensings-loader').style.display = 'none';
@@ -587,13 +585,10 @@
                 notes: document.getElementById('dispense-notes').value,
             };
 
-            fetch('{{ route("medical-records.dispense", $medicalRecord->id) }}', {
+            pcFetch('{{ route("medical-records.dispense", $medicalRecord->id) }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify(payload)
             })
@@ -690,13 +685,10 @@
                 notes: document.getElementById('edit-notes').value,
             };
 
-            fetch('{{ route("medical-records.update", $medicalRecord->id) }}', {
+            pcFetch('{{ route("medical-records.update", $medicalRecord->id) }}', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify(payload)
             })

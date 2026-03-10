@@ -167,7 +167,7 @@
                         <div id="user-dropdown-detailed" class="topbar-item nav-user">
                             <div class="dropdown">
                                 <a class="topbar-link dropdown-toggle drop-arrow-none px-2" data-bs-toggle="dropdown" href="#!" aria-haspopup="false" aria-expanded="false">
-                                    <img src="{{ asset('assets/images/users/user-1.jpg') }}" width="32" class="rounded-circle me-lg-2 d-flex" alt="user-image" />
+                                    <img src="https://ui-avatars.com/api/?name={{ urlencode(Auth::user()->name ?? 'U') }}&background=4e73df&color=fff&size=64&font-size=0.45&rounded=true" width="32" class="rounded-circle me-lg-2 d-flex" alt="user-image" />
                                     <div class="d-lg-flex align-items-center gap-1 d-none">
                                         <span>
                                             <h5 class="my-0 lh-1 pro-username">{{ Auth::user()->name ?? 'User' }}</h5>
@@ -180,14 +180,9 @@
                                         <h6 class="text-overflow m-0">{{ __('dashboard.welcome_back') }}</h6>
                                     </div>
 
-                                    <a href="#!" class="dropdown-item">
+                                    <a href="{{ route('profile.index') }}" class="dropdown-item">
                                         <i class="ti ti-user-circle me-1 fs-lg align-middle"></i>
                                         <span class="align-middle">{{ __('dashboard.profile') }}</span>
-                                    </a>
-
-                                    <a href="javascript:void(0);" class="dropdown-item">
-                                        <i class="ti ti-settings-2 me-1 fs-lg align-middle"></i>
-                                        <span class="align-middle">{{ __('dashboard.account_settings') }}</span>
                                     </a>
 
                                     <div class="dropdown-divider"></div>
@@ -218,7 +213,7 @@
                         <div class="row">
                             <div class="col-md-6 text-center text-md-start">
                                 <script>document.write(new Date().getFullYear())</script>
-                                &copy; تنفيذ مكتب تقنيات الصحة بوزارة الصحة الليبية
+                                &copy; تنفيذ مكتب تقنية المعلومات الصحية بوزارة الصحة الليبية
                             </div>
                         </div>
                     </div>
@@ -228,6 +223,45 @@
 
         <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
         <script src="{{ asset('assets/js/app.js') }}"></script>
+
+        <script>
+            window.PrimaCare = {
+                csrfToken: document.querySelector('meta[name="csrf-token"]').content,
+                locale: '{{ app()->getLocale() }}',
+                messages: {
+                    error: '{{ __("common.error_occurred") }}',
+                    sessionExpired: '{{ __("common.session_expired") }}'
+                }
+            };
+
+            window.pcFetch = function(url, options) {
+                options = options || {};
+                options.headers = Object.assign({
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }, options.headers || {});
+
+                if (options.method && options.method !== 'GET') {
+                    options.headers['X-CSRF-TOKEN'] = window.PrimaCare.csrfToken;
+                }
+
+                return fetch(url, options).then(function(response) {
+                    if (response.status === 419) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: window.PrimaCare.messages.sessionExpired,
+                            allowOutsideClick: false
+                        }).then(function() { location.reload(); });
+                        return Promise.reject('session_expired');
+                    }
+                    if (response.status === 401) {
+                        window.location.href = '/login';
+                        return Promise.reject('unauthenticated');
+                    }
+                    return response;
+                });
+            };
+        </script>
 
         @stack('js')
     </body>

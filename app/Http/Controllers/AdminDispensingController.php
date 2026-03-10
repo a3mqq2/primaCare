@@ -11,15 +11,12 @@ class AdminDispensingController extends Controller
 {
     public function index()
     {
-        $centers = Center::orderBy('name_ar')->get();
-        $employees = User::where('role', 'center_employee')->orderBy('name')->get();
-
-        return view('admin.dispensings.index', compact('centers', 'employees'));
+        return view('admin.dispensings.index');
     }
 
     public function data(Request $request)
     {
-        $dispensings = $this->applyFilters($request)->latest('dispensed_at')->paginate(20);
+        $dispensings = $this->applyFilters($request)->latest('dispensed_at')->paginate(10);
 
         return response()->json($dispensings);
     }
@@ -33,7 +30,7 @@ class AdminDispensingController extends Controller
 
     public function print(Request $request)
     {
-        $dispensings = $this->applyFilters($request)->latest('dispensed_at')->get();
+        $dispensings = $this->applyFilters($request)->latest('dispensed_at')->limit(500)->get();
 
         return view('admin.dispensings.print', compact('dispensings'));
     }

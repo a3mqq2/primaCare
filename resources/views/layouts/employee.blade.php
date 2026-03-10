@@ -128,7 +128,7 @@
         </div>
 
         <footer class="py-3 border-top text-center text-muted">
-            <small><script>document.write(new Date().getFullYear())</script> &copy; تنفيذ مكتب تقنيات الصحة بوزارة الصحة الليبية</small>
+            <small><script>document.write(new Date().getFullYear())</script> &copy; تنفيذ مكتب تقنية المعلومات الصحية بوزارة الصحة الليبية</small>
         </footer>
 
         <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
@@ -173,6 +173,45 @@
                     }
                 }, 100);
             })();
+        </script>
+
+        <script>
+            window.PrimaCare = {
+                csrfToken: document.querySelector('meta[name="csrf-token"]').content,
+                locale: '{{ app()->getLocale() }}',
+                messages: {
+                    error: '{{ __("common.error_occurred") }}',
+                    sessionExpired: '{{ __("common.session_expired") }}'
+                }
+            };
+
+            window.pcFetch = function(url, options) {
+                options = options || {};
+                options.headers = Object.assign({
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }, options.headers || {});
+
+                if (options.method && options.method !== 'GET') {
+                    options.headers['X-CSRF-TOKEN'] = window.PrimaCare.csrfToken;
+                }
+
+                return fetch(url, options).then(function(response) {
+                    if (response.status === 419) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: window.PrimaCare.messages.sessionExpired,
+                            allowOutsideClick: false
+                        }).then(function() { location.reload(); });
+                        return Promise.reject('session_expired');
+                    }
+                    if (response.status === 401) {
+                        window.location.href = '/login';
+                        return Promise.reject('unauthenticated');
+                    }
+                    return response;
+                });
+            };
         </script>
 
         @stack('js')

@@ -21,6 +21,7 @@ return [
     'created' => 'Center created successfully',
     'updated' => 'Center updated successfully',
     'deleted' => 'Center deleted successfully',
+    'cannot_delete_has_data' => 'Cannot delete this center because it has associated users or medical records',
     'city_created' => 'City added successfully',
     'add_city' => 'Add City',
     'city_name' => 'City Name',
@@ -36,6 +37,10 @@ return [
     'loading' => 'Loading...',
     'drop_zone_text' => 'Drag & drop an image here or <span>browse</span>',
     'drop_zone_hint' => 'JPG, PNG, SVG or WEBP (max 2MB)',
+    'print_title' => 'Health Centers Report',
+    'total_centers' => 'Total Centers',
+    'filter_by_city' => 'Filter by City',
+    'all_cities' => 'All Cities',
 
     'validation' => [
         'name_ar_required' => 'Arabic name is required',

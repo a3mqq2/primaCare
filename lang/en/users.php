@@ -2,6 +2,7 @@
 
 return [
     'title' => 'Users Management',
+    'print_title' => 'Users Report',
     'add_user' => 'Add User',
     'edit_user' => 'Edit User',
     'name' => 'Name',

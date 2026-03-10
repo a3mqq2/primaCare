@@ -29,9 +29,20 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">{{ __('medicines.title') }}</h4>
-            <a href="{{ route('medicines.create') }}" class="btn btn-primary">
-                <i class="ti ti-plus me-1"></i>{{ __('medicines.add_medicine') }}
-            </a>
+            <div>
+                <a href="{{ route('medicines.dispensings') }}" class="btn btn-info me-1">
+                    <i class="ti ti-history me-1"></i>{{ __('medicines.dispensing_history') }}
+                </a>
+                <button type="button" class="btn btn-outline-success me-1" id="export-btn">
+                    <i class="ti ti-file-spreadsheet me-1"></i>{{ __('common.export_excel') }}
+                </button>
+                <button type="button" class="btn btn-outline-secondary me-1" id="print-btn">
+                    <i class="ti ti-printer me-1"></i>{{ __('common.print') }}
+                </button>
+                <a href="{{ route('medicines.create') }}" class="btn btn-primary">
+                    <i class="ti ti-plus me-1"></i>{{ __('medicines.add_medicine') }}
+                </a>
+            </div>
         </div>
 
         <div class="card position-relative">
@@ -52,6 +63,8 @@
                                 <th>#</th>
                                 <th>{{ __('medicines.name') }}</th>
                                 <th>{{ __('medicines.description') }}</th>
+                                <th>{{ __('medicines.dispensing_count') }}</th>
+                                <th>{{ __('medicines.total_quantity') }}</th>
                                 <th>{{ __('medicines.created_at') }}</th>
                             </tr>
                         </thead>
@@ -114,7 +127,6 @@
     let currentPage = 1;
     let searchTimer;
     let locale = '{{ app()->getLocale() }}';
-    let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     let editModal;
     let currentRecordId = null;
 
@@ -132,6 +144,20 @@
 
         document.getElementById('save-btn').addEventListener('click', saveRecord);
         document.getElementById('delete-btn').addEventListener('click', deleteRecord);
+
+        document.getElementById('print-btn').addEventListener('click', function() {
+            let search = document.getElementById('search').value;
+            let params = new URLSearchParams();
+            if (search) params.set('search', search);
+            window.open('/medicines/print?' + params.toString(), '_blank');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', function() {
+            let search = document.getElementById('search').value;
+            let params = new URLSearchParams();
+            if (search) params.set('search', search);
+            window.location.href = '/medicines/export?' + params.toString();
+        });
     });
 
     function openRecord(id) {
@@ -140,9 +166,7 @@
         document.getElementById('modal-loading').style.display = 'flex';
         editModal.show();
 
-        fetch(`/medicines/${id}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        pcFetch(`/medicines/${id}`)
         .then(r => r.json())
         .then(result => {
             document.getElementById('modal-loading').style.display = 'none';
@@ -160,6 +184,7 @@
         .catch(() => {
             document.getElementById('modal-loading').style.display = 'none';
             editModal.hide();
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -174,13 +199,10 @@
             description: document.getElementById('edit-description').value
         };
 
-        fetch(`/medicines/${currentRecordId}`, {
+        pcFetch(`/medicines/${currentRecordId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify(payload)
         })
@@ -203,6 +225,7 @@
         .catch(() => {
             btn.disabled = false;
             document.getElementById('modal-loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -219,13 +242,8 @@
             if (result.isConfirmed) {
                 document.getElementById('modal-loading').style.display = 'flex';
 
-                fetch(`/medicines/${currentRecordId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
+                pcFetch(`/medicines/${currentRecordId}`, {
+                    method: 'DELETE'
                 })
                 .then(response => response.json().then(data => ({status: response.status, body: data})))
                 .then(({status, body}) => {
@@ -240,6 +258,7 @@
                 })
                 .catch(() => {
                     document.getElementById('modal-loading').style.display = 'none';
+                    Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
                 });
             }
         });
@@ -250,9 +269,7 @@
         let search = document.getElementById('search').value;
         document.getElementById('loading').style.display = 'flex';
 
-        fetch(`{{ route('medicines.data') }}?page=${currentPage}&search=${encodeURIComponent(search)}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
+        pcFetch(`{{ route('medicines.data') }}?page=${currentPage}&search=${encodeURIComponent(search)}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('loading').style.display = 'none';
@@ -261,6 +278,7 @@
         })
         .catch(() => {
             document.getElementById('loading').style.display = 'none';
+            Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
         });
     }
 
@@ -285,6 +303,8 @@
                 <td>${startIndex + index + 1}</td>
                 <td>${escapeHtml(medicine.name)}</td>
                 <td>${medicine.description ? escapeHtml(medicine.description) : '-'}</td>
+                <td><span class="badge bg-primary-subtle text-primary">${medicine.dispensings_count}</span></td>
+                <td><span class="badge bg-success-subtle text-success">${medicine.dispensings_sum_quantity || 0}</span></td>
                 <td>${createdAt}</td>
             </tr>`;
         });

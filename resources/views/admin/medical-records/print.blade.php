@@ -62,6 +62,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
+            table-layout: fixed;
         }
 
         thead {
@@ -75,18 +76,21 @@
         th {
             background: #f0f0f0;
             font-weight: 600;
-            font-size: 11.5px;
+            font-size: 10px;
             letter-spacing: 0.3px;
-            padding: 9px 8px;
+            padding: 6px 4px;
             border: 1.5px solid #1a1a1a;
             text-align: {{ app()->getLocale() === 'ar' ? 'right' : 'left' }};
+            white-space: nowrap;
         }
 
         td {
-            padding: 7px 8px;
+            padding: 5px 4px;
             border: 1px solid #555;
-            font-size: 12px;
+            font-size: 10px;
             vertical-align: top;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         tbody tr:nth-child(even) {
@@ -96,11 +100,11 @@
         td.num {
             text-align: center;
             font-weight: 600;
-            width: 40px;
+            width: 30px;
         }
 
         td.notes-col {
-            max-width: 200px;
+            max-width: 120px;
             word-wrap: break-word;
         }
 
@@ -140,16 +144,16 @@
             }
 
             @page {
-                size: A4 portrait;
-                margin: 10mm;
+                size: A4 landscape;
+                margin: 8mm;
             }
         }
 
         @media screen {
             body {
-                max-width: 900px;
+                max-width: 1200px;
                 margin: 0 auto;
-                padding: 30px;
+                padding: 20px;
             }
         }
     </style>

@@ -91,6 +91,14 @@ return [
     'edit_record' => 'تعديل السجل',
     'updated' => 'تم تحديث السجل الطبي بنجاح',
 
+    'print_record' => 'طباعة السجل',
+    'print_record_title' => 'سجل المريض',
+    'dispensing_operations' => 'عمليات الصرف',
+
+    'national_id_exists_warning' => 'يوجد سجل مسبق بنفس رقم الهوية باسم ":name" في :center',
+    'today_records' => 'سجلات اليوم',
+    'today_dispensings' => 'عمليات صرف اليوم',
+
     'welcome_greeting' => 'مرحباً، :name',
     'welcome_message' => 'نتمنى لك يوماً مليئاً بالعطاء والإنجاز',
 

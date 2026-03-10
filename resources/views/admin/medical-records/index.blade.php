@@ -3,6 +3,7 @@
 @section('title', __('medical_records.admin_title') . ' - PrimaCare')
 
 @push('css')
+<link href="{{ asset('assets/plugins/choices/choices.min.css') }}" rel="stylesheet" />
 <style>
     .loading-overlay {
         position: absolute;
@@ -20,6 +21,20 @@
     [data-bs-theme="dark"] .loading-overlay {
         background: rgba(0,0,0,0.5);
     }
+    .choices { margin-bottom: 0; }
+    .choices .choices__inner {
+        min-height: 31px;
+        padding: 2px 4px;
+        font-size: .875rem;
+        border-color: var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        border-radius: var(--bs-border-radius);
+    }
+    .choices .choices__input { font-size: .875rem; background-color: transparent; color: var(--bs-body-color); }
+    .choices .choices__list--dropdown { border-color: var(--bs-border-color); background-color: var(--bs-body-bg); }
+    .choices .choices__list--dropdown .choices__item { color: var(--bs-body-color); font-size: .875rem; }
+    .choices .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: var(--bs-primary); color: #fff; }
+    .choices .choices__list--single .choices__item { color: var(--bs-body-color); }
 </style>
 @endpush
 
@@ -28,9 +43,14 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">{{ __('medical_records.admin_title') }}</h4>
-            <button type="button" class="btn btn-secondary no-print" id="print-btn">
-                <i class="ti ti-printer me-1"></i>{{ __('medical_records.print') }}
-            </button>
+            <div>
+                <button type="button" class="btn btn-outline-success me-1" id="export-btn">
+                    <i class="ti ti-file-spreadsheet me-1"></i>{{ __('common.export_excel') }}
+                </button>
+                <button type="button" class="btn btn-secondary no-print" id="print-btn">
+                    <i class="ti ti-printer me-1"></i>{{ __('medical_records.print') }}
+                </button>
+            </div>
         </div>
 
         <div class="card mb-3 no-print">
@@ -45,9 +65,6 @@
                     <div class="col-md-4 col-lg-3">
                         <select id="filter-center" class="form-select form-select-sm">
                             <option value="">{{ __('medical_records.all_centers') }}</option>
-                            @foreach($centers as $center)
-                            <option value="{{ $center->id }}">{{ $center->name }}</option>
-                            @endforeach
                         </select>
                     </div>
                     <div class="col-md-4 col-lg-3">
@@ -72,9 +89,6 @@
                     <div class="col-md-4 col-lg-3">
                         <select id="filter-employee" class="form-select form-select-sm">
                             <option value="">{{ __('medical_records.all_employees') }}</option>
-                            @foreach($employees as $emp)
-                            <option value="{{ $emp->id }}">{{ $emp->name }}</option>
-                            @endforeach
                         </select>
                     </div>
                     <div class="col-md-4 col-lg-3">
@@ -131,12 +145,59 @@
 @endsection
 
 @push('js')
+<script src="{{ asset('assets/plugins/choices/choices.min.js') }}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         let currentPage = 1;
         let debounceTimer = null;
         let isLoading = false;
         let genderLabels = { male: '{{ __("medical_records.male") }}', female: '{{ __("medical_records.female") }}' };
+
+        function initSearchSelect(selectEl, url, labelFn) {
+            var choices = new Choices(selectEl, {
+                searchEnabled: true,
+                removeItemButton: true,
+                shouldSort: false,
+                placeholderValue: '',
+                itemSelectText: '',
+                noResultsText: '',
+                noChoicesText: ''
+            });
+
+            function loadOptions(search) {
+                pcFetch(url + '?search=' + encodeURIComponent(search || ''))
+                    .then(function(r) { return r.json(); })
+                    .then(function(items) {
+                        choices.clearChoices();
+                        choices.setChoices(
+                            items.map(function(item) { return { value: String(item.id), label: labelFn(item) }; }),
+                            'value', 'label', true
+                        );
+                    })
+                    .catch(function() {
+                        Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
+                    });
+            }
+            loadOptions('');
+
+            selectEl.addEventListener('search', function(e) {
+                loadOptions(e.detail.value);
+            });
+
+            return choices;
+        }
+
+        var centerChoices = initSearchSelect(
+            document.getElementById('filter-center'),
+            '/centers/search',
+            function(c) { return window.PrimaCare.locale === 'ar' ? c.name_ar : c.name_en; }
+        );
+
+        var employeeChoices = initSearchSelect(
+            document.getElementById('filter-employee'),
+            '/users/search-employees',
+            function(e) { return e.name; }
+        );
 
         fetchData();
 
@@ -153,13 +214,13 @@
 
         document.getElementById('reset-btn').addEventListener('click', function() {
             document.getElementById('general-search').value = '';
-            document.getElementById('filter-center').value = '';
+            centerChoices.removeActiveItems();
             document.getElementById('filter-name').value = '';
             document.getElementById('filter-national-id').value = '';
             document.getElementById('filter-phone').value = '';
             document.getElementById('filter-gender').value = '';
             document.getElementById('filter-occupation').value = '';
-            document.getElementById('filter-employee').value = '';
+            employeeChoices.removeActiveItems();
             document.getElementById('filter-date-from').value = '';
             document.getElementById('filter-date-to').value = '';
             currentPage = 1;
@@ -168,6 +229,10 @@
 
         document.getElementById('print-btn').addEventListener('click', function() {
             window.open(`{{ route('admin.medical-records.print') }}?${buildParams()}`, '_blank');
+        });
+
+        document.getElementById('export-btn').addEventListener('click', function() {
+            window.location.href = `{{ route('admin.medical-records.export') }}?${buildParams()}`;
         });
 
         function debounceSearch() {
@@ -219,7 +284,7 @@
             page = page || currentPage;
             document.getElementById('loading').style.display = 'flex';
 
-            fetch(`{{ route('admin.medical-records.data') }}?${buildParams(page)}`, {
+            pcFetch(`{{ route('admin.medical-records.data') }}?${buildParams(page)}`, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             })
             .then(r => r.json())
@@ -228,9 +293,10 @@
                 document.getElementById('loading').style.display = 'none';
                 renderData(data);
             })
-            .catch(() => {
+            .catch(function() {
                 isLoading = false;
                 document.getElementById('loading').style.display = 'none';
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         }
 
@@ -264,21 +330,56 @@
                 </tr>
             `).join('');
 
+            renderPagination(data);
+        }
+
+        function renderPagination(data) {
             let container = document.getElementById('pagination');
             if (data.last_page <= 1) { container.innerHTML = ''; return; }
 
-            let html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0">';
-            for (let p = 1; p <= data.last_page; p++) {
-                html += `<li class="page-item ${p === data.current_page ? 'active' : ''}"><a class="page-link" href="#" data-page="${p}">${p}</a></li>`;
-            }
+            let current = data.current_page;
+            let last = data.last_page;
+            let pages = [];
+            let delta = 2;
+
+            pages.push(1);
+
+            let rangeStart = Math.max(2, current - delta);
+            let rangeEnd = Math.min(last - 1, current + delta);
+
+            if (rangeStart > 2) pages.push('...');
+            for (let p = rangeStart; p <= rangeEnd; p++) pages.push(p);
+            if (rangeEnd < last - 1) pages.push('...');
+
+            if (last > 1) pages.push(last);
+
+            let prevDisabled = current === 1 ? ' disabled' : '';
+            let nextDisabled = current === last ? ' disabled' : '';
+
+            let html = '<nav><ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap">';
+            html += `<li class="page-item${prevDisabled}"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+
+            pages.forEach(function(p) {
+                if (p === '...') {
+                    html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                } else {
+                    html += `<li class="page-item ${p === current ? 'active' : ''}"><a class="page-link" href="#" data-page="${p}">${p}</a></li>`;
+                }
+            });
+
+            html += `<li class="page-item${nextDisabled}"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
             html += '</ul></nav>';
+            html += `<div class="text-center text-muted mt-1" style="font-size:.8rem">${data.from}-${data.to} {{ __('common.of') }} ${data.total}</div>`;
             container.innerHTML = html;
 
-            container.querySelectorAll('[data-page]').forEach(link => {
+            container.querySelectorAll('[data-page]').forEach(function(link) {
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
-                    currentPage = parseInt(this.dataset.page);
-                    fetchData(currentPage);
+                    let page = parseInt(this.dataset.page);
+                    if (page >= 1 && page <= last) {
+                        currentPage = page;
+                        fetchData(currentPage);
+                    }
                 });
             });
         }

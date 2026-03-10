@@ -6,13 +6,24 @@ use App\Http\Requests\StoreDispensingRequest;
 use App\Http\Requests\StoreMedicalRecordRequest;
 use App\Models\Dispensing;
 use App\Models\MedicalRecord;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 
 class MedicalRecordController extends Controller
 {
     public function index()
     {
-        return view('medical-records.index');
+        $centerId = auth()->user()->center_id;
+
+        $todayRecords = MedicalRecord::forCenter($centerId)
+            ->whereDate('created_at', today())
+            ->count();
+
+        $todayDispensings = Dispensing::whereHas('medicalRecord', function ($q) use ($centerId) {
+            $q->where('center_id', $centerId);
+        })->whereDate('dispensed_at', today())->count();
+
+        return view('medical-records.index', compact('todayRecords', 'todayDispensings'));
     }
 
     public function data(Request $request)
@@ -41,6 +52,8 @@ class MedicalRecordController extends Controller
         $data['created_by'] = auth()->id();
 
         $record = MedicalRecord::create($data);
+
+        ActivityLogger::log('created', $record);
 
         return response()->json([
             'success' => true,
@@ -80,11 +93,27 @@ class MedicalRecordController extends Controller
         return view('medical-records.show', compact('medicalRecord'));
     }
 
+    public function printRecord(MedicalRecord $medicalRecord)
+    {
+        $this->authorizeCenter($medicalRecord);
+
+        $medicalRecord->load(['creator', 'center']);
+        $dispensings = $medicalRecord->dispensings()
+            ->with(['medicine', 'dispensedBy'])
+            ->latest('dispensed_at')
+            ->get();
+
+        return view('medical-records.print', compact('medicalRecord', 'dispensings'));
+    }
+
     public function update(StoreMedicalRecordRequest $request, MedicalRecord $medicalRecord)
     {
         $this->authorizeCenter($medicalRecord);
 
+        $oldValues = $medicalRecord->getOriginal();
         $medicalRecord->update($request->validated());
+
+        ActivityLogger::log('updated', $medicalRecord, $oldValues);
 
         return response()->json([
             'success' => true,
@@ -113,12 +142,41 @@ class MedicalRecordController extends Controller
         $data['dispensed_by'] = auth()->id();
         $data['dispensed_at'] = now();
 
-        Dispensing::create($data);
+        $dispensing = Dispensing::create($data);
+
+        ActivityLogger::log('created', $dispensing);
 
         return response()->json([
             'success' => true,
             'message' => __('medical_records.dispensed'),
         ]);
+    }
+
+    public function checkNationalId(Request $request)
+    {
+        $nationalId = $request->input('national_id');
+        $excludeId = $request->input('exclude_id');
+
+        $query = MedicalRecord::where('national_id', $nationalId);
+
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        $existing = $query->first(['id', 'full_name', 'center_id']);
+
+        if ($existing) {
+            $existing->load('center:id,name_ar,name_en');
+            return response()->json([
+                'exists' => true,
+                'record' => [
+                    'full_name' => $existing->full_name,
+                    'center' => $existing->center?->name ?? '',
+                ],
+            ]);
+        }
+
+        return response()->json(['exists' => false]);
     }
 
     private function authorizeCenter(MedicalRecord $record): void

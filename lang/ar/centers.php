@@ -21,6 +21,7 @@ return [
     'created' => 'تم إنشاء المركز بنجاح',
     'updated' => 'تم تحديث المركز بنجاح',
     'deleted' => 'تم حذف المركز بنجاح',
+    'cannot_delete_has_data' => 'لا يمكن حذف هذا المركز لأنه مرتبط ببيانات مستخدمين أو سجلات طبية',
     'city_created' => 'تمت إضافة المدينة بنجاح',
     'add_city' => 'إضافة مدينة',
     'city_name' => 'اسم المدينة',
@@ -36,6 +37,10 @@ return [
     'loading' => 'جاري التحميل...',
     'drop_zone_text' => 'اسحب وأفلت صورة هنا أو <span>تصفح</span>',
     'drop_zone_hint' => 'JPG, PNG, SVG أو WEBP (حد أقصى 2 ميجا)',
+    'print_title' => 'تقرير المراكز الصحية',
+    'total_centers' => 'إجمالي المراكز',
+    'filter_by_city' => 'فلترة حسب المدينة',
+    'all_cities' => 'جميع المدن',
 
     'validation' => [
         'name_ar_required' => 'الاسم بالعربي مطلوب',

@@ -4,6 +4,7 @@
 
 @push('css')
 <link href="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.css') }}" rel="stylesheet" />
+<link href="{{ asset('assets/plugins/choices/choices.min.css') }}" rel="stylesheet" />
 <style>
     .loading-overlay {
         position: absolute;
@@ -21,6 +22,19 @@
     [data-bs-theme="dark"] .loading-overlay {
         background: rgba(0,0,0,0.5);
     }
+    .choices { margin-bottom: 0; }
+    .choices .choices__inner {
+        min-height: 38px;
+        padding: 4px 8px;
+        border-color: var(--bs-border-color);
+        background-color: var(--bs-body-bg);
+        border-radius: var(--bs-border-radius);
+    }
+    .choices .choices__input { background-color: transparent; color: var(--bs-body-color); }
+    .choices .choices__list--dropdown { border-color: var(--bs-border-color); background-color: var(--bs-body-bg); }
+    .choices .choices__list--dropdown .choices__item { color: var(--bs-body-color); }
+    .choices .choices__list--dropdown .choices__item--selectable.is-highlighted { background-color: var(--bs-primary); color: #fff; }
+    .choices .choices__list--single .choices__item { color: var(--bs-body-color); }
 </style>
 @endpush
 
@@ -80,9 +94,6 @@
                             <label class="form-label">{{ __('users.center') }} <span class="text-danger">*</span></label>
                             <select name="center_id" id="center_id" class="form-select">
                                 <option value="">{{ __('users.select_center') }}</option>
-                                @foreach($centers as $center)
-                                    <option value="{{ $center->id }}">{{ $center->name }}</option>
-                                @endforeach
                             </select>
                             <div class="invalid-feedback" id="error-center_id"></div>
                         </div>
@@ -117,12 +128,51 @@
 
 @push('js')
 <script src="{{ asset('assets/plugins/sweetalert2/sweetalert2.min.js') }}"></script>
+<script src="{{ asset('assets/plugins/choices/choices.min.js') }}"></script>
 <script>
+    let centerChoices = null;
+
+    function initCenterChoices(selectEl) {
+        let choices = new Choices(selectEl, {
+            searchEnabled: true,
+            removeItemButton: true,
+            shouldSort: false,
+            placeholderValue: '',
+            itemSelectText: '',
+            noResultsText: '',
+            noChoicesText: ''
+        });
+
+        function loadCenters(search) {
+            pcFetch('/centers/search?search=' + encodeURIComponent(search || ''))
+                .then(r => r.json())
+                .then(centers => {
+                    let locale = window.PrimaCare.locale;
+                    choices.clearChoices();
+                    choices.setChoices(
+                        centers.map(c => ({ value: String(c.id), label: locale === 'ar' ? c.name_ar : c.name_en })),
+                        'value', 'label', true
+                    );
+                });
+        }
+        loadCenters('');
+
+        selectEl.addEventListener('search', function(e) {
+            loadCenters(e.detail.value);
+        });
+
+        return choices;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        let csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         let roleSelect = document.getElementById('role');
         let centerField = document.getElementById('center-field');
         let managerField = document.getElementById('manager-field');
+
+        let centerEl = document.getElementById('center_id');
+        if (centerEl && centerEl.type !== 'hidden') {
+            centerChoices = initCenterChoices(centerEl);
+        }
 
         if (centerField && managerField) {
             roleSelect.addEventListener('change', function() {
@@ -137,7 +187,10 @@
             } else {
                 centerField.style.display = 'none';
                 managerField.style.display = 'none';
-                document.getElementById('center_id').value = '';
+                if (centerChoices) {
+                    centerChoices.removeActiveItems();
+                    centerChoices.setChoiceByValue('');
+                }
                 document.getElementById('is_center_manager').checked = false;
             }
         }
@@ -160,13 +213,10 @@
                 is_center_manager: document.getElementById('is_center_manager').checked ? 1 : 0
             };
 
-            fetch('{{ route("users.store") }}', {
+            pcFetch('{{ route("users.store") }}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
             })
@@ -194,6 +244,7 @@
             .catch(() => {
                 btn.disabled = false;
                 document.getElementById('loading').style.display = 'none';
+                Swal.fire({ icon: 'error', title: window.PrimaCare.messages.error });
             });
         });
     });
