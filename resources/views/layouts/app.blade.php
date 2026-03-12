@@ -55,7 +55,7 @@
                         <div class="logo-topbar">
                             <a href="{{ route('dashboard') }}" class="logo-light">
                                 <span class="logo-lg">
-                                    <img src="{{ asset('assets/images/logo-black.png') }}" alt="logo" />
+                                    <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="logo" />
                                 </span>
                                 <span class="logo-sm">
                                     <img src="{{ asset('assets/images/logo-sm.png') }}" alt="small logo" />
@@ -64,7 +64,7 @@
 
                             <a href="{{ route('dashboard') }}" class="logo-dark">
                                 <span class="logo-lg">
-                                    <img src="{{ asset('assets/images/logo-black.png') }}" alt="dark logo" />
+                                    <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="dark logo" />
                                 </span>
                                 <span class="logo-sm">
                                     <img src="{{ asset('assets/images/logo-sm.png') }}" alt="small logo" />

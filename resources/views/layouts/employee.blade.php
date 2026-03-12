@@ -56,8 +56,8 @@
             <div class="container">
                 <div class="d-flex justify-content-between align-items-center">
                     <a href="{{ route('medical-records.index') }}">
-                        <img src="{{ asset('assets/images/logo-black.png') }}" alt="logo" height="36" class="d-none" id="logo-light" />
-                        <img src="{{ asset('assets/images/logo-black.png') }}" alt="logo" height="36" class="d-none" id="logo-dark" />
+                        <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="logo" height="36" class="d-none" id="logo-light" />
+                        <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="logo" height="36" class="d-none" id="logo-dark" />
                     </a>
 
                     <div class="d-flex align-items-center gap-2">

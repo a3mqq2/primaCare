@@ -52,7 +52,7 @@
 
                     <div class="text-center mb-3">
                         <a href="/">
-                            <img src="{{ asset('assets/images/logo-black.png') }}" alt="logo" style="height: 80px;" />
+                            <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="logo" style="height: 80px;" />
                         </a>
                     </div>
 

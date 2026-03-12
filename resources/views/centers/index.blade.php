@@ -45,7 +45,7 @@
     }
     .modal-logo-preview {
         width: 80px;
-        height: 80px;
+        height: 120px;
         border-radius: .5rem;
         object-fit: cover;
         border: 1px solid #e5e7eb;
