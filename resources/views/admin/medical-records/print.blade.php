@@ -162,7 +162,7 @@
 
     <div class="report-header">
         <div class="report-logo">
-            <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="PrimaCare" />
+            <img src="{{ asset('assets/images/logo-black.png') }}" alt="PrimaCare" />
         </div>
         <h1>{{ __('medical_records.print_title') }}</h1>
         <div class="report-meta">

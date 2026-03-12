@@ -14,7 +14,7 @@
     }
     .stat-card .stat-icon {
         width: 50px;
-        height: 50px;
+        height: 80px;
         border-radius: .5rem;
         display: flex;
         align-items: center;

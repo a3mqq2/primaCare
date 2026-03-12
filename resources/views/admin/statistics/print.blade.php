@@ -27,7 +27,7 @@
         }
 
         .report-logo { margin-bottom: 12px; }
-        .report-logo img { height: 80px; width: auto; }
+        .report-logo img { height: 150px; width: auto; }
 
         .report-header h1 {
             font-size: 22px;
@@ -138,7 +138,7 @@
 
     <div class="report-header">
         <div class="report-logo">
-            <img src="{{ asset('assets/images/primacare-ar.png') }}" alt="PrimaCare" />
+            <img src="{{ asset('assets/images/logo-black.png') }}" alt="PrimaCare" />
         </div>
         <h1>{{ __('statistics.print_title') }}</h1>
         <div class="report-meta">
